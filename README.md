@@ -38,6 +38,38 @@ That's it. Open Claude Code and start talking to it:
 
 Once connected, you can manage your board entirely through conversation:
 
+### Setting Up Cron Jobs
+
+```
+"Every hour, tail the nginx access and error logs. If you see
+ anything unusual — spikes in 5xx errors, suspicious request
+ patterns, or unexpected traffic — create a new issue to investigate"
+
+"Every 2 hours, pick up the next todo issue and try to fix it.
+ Open a PR with your changes, comment the PR link on the issue,
+ and move the issue to review"
+
+"Every 2 hours, pick up the next issue in review. Check out the
+ PR, verify the code is correct and tests pass. If everything
+ looks good, merge it. If not, add a review comment on the PR
+ explaining what needs to change and move the issue back to todo"
+
+"Create a cron job that runs every 6 hours to check for
+ and fix any TypeScript type errors in the project"
+
+"Set up a daily schedule at 9 AM on weekdays to review
+ the board and work on the highest priority task"
+
+"Add a cron job that runs every night at midnight to
+ run the test suite and create issues for any failures"
+
+"Schedule a weekly cleanup every Friday at 5 PM to
+ archive all done issues and summarize what was accomplished"
+
+"Create a schedule that runs every 30 minutes to monitor
+ the API health endpoint and create an issue if it's down"
+```
+
 ### Managing Tasks
 
 ```
@@ -54,25 +86,6 @@ Once connected, you can manage your board entirely through conversation:
 "Show me all in-progress issues"
 
 "Add a comment to the auth bug — we need to check the session TTL"
-```
-
-### Setting Up Cron Jobs
-
-```
-"Create a cron job that runs every 6 hours to check for
- and fix any TypeScript type errors in the project"
-
-"Set up a daily schedule at 9 AM on weekdays to review
- the board and work on the highest priority task"
-
-"Add a cron job that runs every night at midnight to
- run the test suite and create issues for any failures"
-
-"Schedule a weekly cleanup every Friday at 5 PM to
- archive all done issues and summarize what was accomplished"
-
-"Create a schedule that runs every 30 minutes to monitor
- the API health endpoint and create an issue if it's down"
 ```
 
 ### Reviewing Activity
