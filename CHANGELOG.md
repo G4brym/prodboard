@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.1.1
+
+### Patch Changes
+
+- 1aa4d25: Add `prodboard install` and `prodboard uninstall` commands to manage a user-level systemd service for the daemon
+
 ## 0.1.0
 
 ### Minor Changes
