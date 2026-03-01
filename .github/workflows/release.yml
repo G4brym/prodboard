@@ -34,6 +34,10 @@ jobs:
       - name: Run tests
         run: bun test
 
+      - name: Get current version
+        id: pre
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
@@ -46,15 +50,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.hasChangesets == 'false'
         run: |
-          for pkg in $(echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | @base64'); do
-            NAME=$(echo "$pkg" | base64 -d | jq -r '.name')
-            VERSION=$(echo "$pkg" | base64 -d | jq -r '.version')
-            gh release create "v${VERSION}" \
-              --title "v${VERSION}" \
-              --generate-notes \
-              --latest
-          done
+          VERSION="${{ steps.pre.outputs.version }}"
+          TAG="v${VERSION}"
+          # Only create release if the tag doesn't already exist
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping."
+          else
+            # Verify the version is actually on npm before creating a release
+            if npm view "prodboard@${VERSION}" version >/dev/null 2>&1; then
+              gh release create "$TAG" \
+                --title "$TAG" \
+                --generate-notes \
+                --latest
+              echo "Created release $TAG"
+            else
+              echo "Version ${VERSION} not found on npm, skipping release."
+            fi
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
