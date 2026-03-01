@@ -297,6 +297,16 @@ bun test
 bun run typecheck
 ```
 
+## Upgrading
+
+```bash
+# Update to the latest version
+bun install -g prodboard@latest
+
+# If running as a systemd service, reinstall to pick up the new binary path
+prodboard install --force
+```
+
 ## License
 
 MIT

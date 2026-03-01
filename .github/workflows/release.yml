@@ -60,20 +60,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
-        if: always() && steps.changesets.outcome != 'cancelled'
+        if: steps.changesets.outputs.published == 'true'
         run: |
-          VERSION="${{ steps.pre.outputs.version }}"
+          VERSION=$(jq -r .version package.json)
           TAG="v${VERSION}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists, skipping."
-          elif npm view "prodboard@${VERSION}" version >/dev/null 2>&1; then
+          else
             gh release create "$TAG" \
               --title "$TAG" \
               --generate-notes \
               --latest
             echo "Created release $TAG"
-          else
-            echo "Version ${VERSION} not on npm, skipping release."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
