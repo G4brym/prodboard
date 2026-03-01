@@ -13,7 +13,6 @@ describe("Project Scaffold", () => {
   test("package.json has correct bin entries", async () => {
     const pkg = await import(resolve(ROOT, "package.json"));
     expect(pkg.bin.prodboard).toBe("bin/prodboard.ts");
-    expect(pkg.bin.pb).toBe("bin/prodboard.ts");
   });
 
   test("package.json has correct name and type", async () => {

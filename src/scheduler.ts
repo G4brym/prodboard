@@ -7,7 +7,7 @@ import { shouldFire } from "./cron.ts";
 import { detectEnvironment, buildInvocation } from "./invocation.ts";
 import { listSchedules } from "./queries/schedules.ts";
 import { createRun, updateRun, getRunningRuns, pruneOldRuns } from "./queries/runs.ts";
-import { resolveTemplate, buildBoardSummaryLine } from "./templates.ts";
+import { resolveTemplate, buildTemplateContext } from "./templates.ts";
 
 // Stream JSON event types
 export interface StreamEvent {
@@ -111,17 +111,11 @@ export class ExecutionManager {
     // Resolve prompt templates
     let resolvedPrompt = schedule.prompt;
     try {
-      const summaryLine = buildBoardSummaryLine(this.db);
-      resolvedPrompt = resolveTemplate(schedule.prompt, {
-        boardSummary: summaryLine,
-        todoCount: 0, // Will be filled by resolveTemplate
-        inProgressCount: 0,
-        datetime: new Date().toISOString(),
-        scheduleName: schedule.name,
-      });
+      const context = buildTemplateContext(this.db, schedule.name);
+      resolvedPrompt = resolveTemplate(schedule.prompt, context);
 
       if (schedule.inject_context) {
-        resolvedPrompt = `[prodboard: ${summaryLine}]\n\n${resolvedPrompt}`;
+        resolvedPrompt = `[prodboard: ${context.boardSummary}]\n\n${resolvedPrompt}`;
       }
     } catch {}
 

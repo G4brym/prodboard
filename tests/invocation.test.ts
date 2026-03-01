@@ -168,4 +168,22 @@ describe("Invocation Builder", () => {
     expect(idx).not.toBe(-1);
     expect(args[idx + 1]).toBe("/path/to/agents.json");
   });
+
+  test("malformed allowed_tools JSON falls back to config defaults", () => {
+    const s = createSchedule(db, {
+      name: "test", cron: "* * * * *", prompt: "go",
+      allowed_tools: "not valid json{{{",
+    });
+    const r = createRun(db, { schedule_id: s.id, prompt_used: "go" });
+    const config = createTestConfig({
+      daemon: {
+        ...createTestConfig().daemon,
+        defaultAllowedTools: ["Bash", "Read"],
+      },
+    });
+    const args = buildInvocation(s, r, config, makeEnv(), "go", db);
+
+    const toolArgs = args.filter((_, i) => i > 0 && args[i - 1] === "--allowedTools");
+    expect(toolArgs).toEqual(["Bash", "Read"]);
+  });
 });

@@ -8,6 +8,7 @@ import {
 } from "../queries/schedules.ts";
 import { listRuns, getScheduleStats } from "../queries/runs.ts";
 import { renderTable, formatDate, jsonOutput } from "../format.ts";
+import { confirm } from "../confirm.ts";
 import { ExecutionManager } from "../scheduler.ts";
 import { createRun } from "../queries/runs.ts";
 
@@ -178,8 +179,11 @@ export async function scheduleRm(args: string[], dbOverride?: Database): Promise
   const schedule = getScheduleByPrefix(db, idOrPrefix);
 
   if (!flags.force && !flags.f) {
-    console.log(`Delete schedule ${schedule.id}: ${schedule.name}? (use --force to skip confirmation)`);
-    return;
+    const ok = await confirm(`Delete schedule ${schedule.id}: ${schedule.name}?`);
+    if (!ok) {
+      console.log("Cancelled.");
+      return;
+    }
   }
 
   deleteSchedule(db, schedule.id);

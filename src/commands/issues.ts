@@ -7,6 +7,7 @@ import {
 } from "../queries/issues.ts";
 import { listComments } from "../queries/comments.ts";
 import { renderTable, formatDate, jsonOutput, bold, dim, cyan } from "../format.ts";
+import { confirm } from "../confirm.ts";
 
 function parseArgs(args: string[]): { flags: Record<string, string | boolean>; positional: string[] } {
   const flags: Record<string, string | boolean> = {};
@@ -255,8 +256,11 @@ export async function rm(args: string[], dbOverride?: Database): Promise<void> {
   const issue = getIssueByPrefix(db, idOrPrefix);
 
   if (!hasFlag(flags, "force", "f")) {
-    console.log(`Delete issue ${issue.id}: ${issue.title}? (use --force to skip confirmation)`);
-    return;
+    const ok = await confirm(`Delete issue ${issue.id}: ${issue.title}?`);
+    if (!ok) {
+      console.log("Cancelled.");
+      return;
+    }
   }
 
   deleteIssue(db, issue.id);

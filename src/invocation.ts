@@ -66,7 +66,11 @@ export function buildInvocation(
   // Allowed tools
   let tools: string[];
   if (schedule.allowed_tools) {
-    tools = JSON.parse(schedule.allowed_tools);
+    try {
+      tools = JSON.parse(schedule.allowed_tools);
+    } catch {
+      tools = env.hasGit ? config.daemon.defaultAllowedTools : config.daemon.nonGitDefaultAllowedTools;
+    }
   } else if (!env.hasGit) {
     tools = config.daemon.nonGitDefaultAllowedTools;
   } else {
