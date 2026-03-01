@@ -1,247 +1,211 @@
 # prodboard
 
-A self-hosted, CLI-first issue tracker and cron scheduler for AI coding agents.
+Give Claude Code a persistent task board and a cron scheduler so it can manage work across sessions.
 
-## Overview
+**The problem:** Claude Code loses context between sessions. It can't remember what tasks exist, what's in progress, or what to work on next. There's no way to schedule it to run recurring jobs like daily triage or nightly CI.
 
-prodboard provides three interfaces for managing issues and scheduled AI tasks:
+**The solution:** prodboard is a local issue tracker backed by SQLite that Claude Code can read and write through MCP tools. It also includes a cron daemon that spawns Claude Code on a schedule to work through tasks autonomously.
 
-- **CLI** — Human-friendly commands for issue tracking and schedule management
-- **MCP Server** — Model Context Protocol server for AI agent integration
-- **Scheduler Daemon** — Cron-based task scheduler that invokes Claude on a schedule
+```
+You (CLI)  ──┐
+              ├──▶  SQLite DB  ◀──  MCP Server  ◀──  Claude Code
+Cron Daemon ──┘
+```
 
-All state lives in a single SQLite database at `~/.prodboard/db.sqlite`.
+## What You Get
+
+- **An issue board Claude Code can use** — Claude reads, creates, updates, and completes issues via MCP tools during any session
+- **Scheduled Claude Code runs** — Define cron jobs that spawn Claude Code to triage issues, run maintenance, or work through the backlog
+- **A CLI you can use too** — Same board, human-friendly commands. Add issues, check status, review what Claude did
+- **Everything local** — Single SQLite file at `~/.prodboard/db.sqlite`. No servers, no accounts, no cloud
 
 ## Quick Start
 
-### Install
-
 ```bash
+# Install
 bun install -g prodboard
-```
 
-### Initialize
-
-```bash
+# Initialize
 prodboard init
-```
 
-This creates `~/.prodboard/` with the database, config, and generated files.
-
-### Connect to Claude
-
-```bash
+# Connect Claude Code to the board
 claude mcp add prodboard -- bunx prodboard mcp
 ```
 
-Or copy the generated MCP config:
+That's it. Claude Code can now use tools like `board_summary`, `pick_next_issue`, `create_issue`, and `complete_issue` in any session.
+
+### Add Some Issues
 
 ```bash
-cat ~/.prodboard/mcp.json
+prodboard add "Fix login bug" -d "OAuth callback URL is wrong" -s todo
+prodboard add "Add dark mode" -s todo
+prodboard add "Write API tests" -s todo
 ```
 
-### Add the CLAUDE.md (optional)
+### Let Claude Work Through Them
+
+In any Claude Code session, Claude can now:
+- Run `board_summary` to see what's on the board
+- Run `pick_next_issue` to claim a task and move it to in-progress
+- Work on the task using its normal tools
+- Run `complete_issue` when done, with a comment about what was accomplished
+
+### Schedule Recurring Jobs
 
 ```bash
-prodboard init --claude-md
+# Every weekday at 9 AM: triage new issues
+prodboard schedule add \
+  --name "daily-triage" \
+  --cron "0 9 * * 1-5" \
+  --prompt "Review the board: {{board_summary}}. Pick the highest priority todo and work on it."
+
+# Start the daemon
+prodboard daemon
 ```
 
 ## CLI Reference
 
-### Issue Management
+### Issues
 
 ```bash
-# Create an issue
-prodboard add "Fix login bug" -d "SameSite cookie issue on Safari" -s todo
-
-# List issues
-prodboard ls                        # All non-archived issues
-prodboard ls --status todo          # Filter by status
-prodboard ls --search "login"       # Search title/description
-prodboard ls --json                 # JSON output
-prodboard ls --all                  # Include archived
-
-# Show issue details
-prodboard show <id>                 # Full ID or unique prefix
-prodboard show a3f9                 # Prefix match
-
-# Edit an issue
-prodboard edit <id> --title "New title"
-prodboard edit <id> --status review
-prodboard edit <id> -d "Updated description"
-
-# Move issue status
-prodboard mv <id> done
-
-# Delete an issue
-prodboard rm <id> --force
-
-# Comments
-prodboard comment <id> "Looking into this"
-prodboard comment <id> "Fixed it" --author claude
-prodboard comments <id>
-prodboard comments <id> --json
+prodboard add "Fix bug" -d "description" -s todo    # Create
+prodboard ls                                         # List (table)
+prodboard ls --status todo --status in-progress      # Filter by status
+prodboard ls --search "login" --json                 # Search + JSON output
+prodboard show <id>                                  # Details + comments
+prodboard edit <id> --title "New title" -s review    # Update fields
+prodboard mv <id> done                               # Change status
+prodboard rm <id> --force                            # Delete
 ```
 
-### Schedule Management
+### Comments
 
 ```bash
-# Create a schedule
-prodboard schedule add \
-  --name "daily-triage" \
-  --cron "0 9 * * 1-5" \
-  --prompt "Review the board and triage new issues"
+prodboard comment <id> "Looking into this"           # Add comment
+prodboard comment <id> "Fixed" --author claude       # With author
+prodboard comments <id>                              # List comments
+```
 
-# List schedules
-prodboard schedule ls
-prodboard schedule ls --all --json
+### Schedules
 
-# Edit a schedule
-prodboard schedule edit <id> --cron "0 10 * * *"
-
-# Enable/disable
-prodboard schedule enable <id>
-prodboard schedule disable <id>
-
-# Delete
-prodboard schedule rm <id> --force
-
-# Run immediately (foreground)
-prodboard schedule run <id>
-
-# View run history
-prodboard schedule logs
-prodboard schedule logs --schedule <id> --limit 10
-
-# View statistics
-prodboard schedule stats
-prodboard schedule stats --schedule <id> --days 7
+```bash
+prodboard schedule add --name "job" --cron "0 9 * * *" --prompt "Do X"
+prodboard schedule ls                                # List schedules
+prodboard schedule edit <id> --cron "0 10 * * *"     # Edit
+prodboard schedule enable <id>                       # Enable
+prodboard schedule disable <id>                      # Disable
+prodboard schedule rm <id> --force                   # Delete
+prodboard schedule run <id>                          # Run immediately
+prodboard schedule logs                              # Run history
+prodboard schedule stats --days 7                    # Statistics
 ```
 
 ### Daemon
 
 ```bash
-# Start daemon (foreground, for systemd)
-prodboard daemon
-
-# Dry run (show schedules without executing)
-prodboard daemon --dry-run
-
-# Check daemon status
-prodboard daemon status
+prodboard daemon                                     # Start (foreground)
+prodboard daemon --dry-run                           # Preview schedules
+prodboard daemon status                              # Check if running
 ```
 
 ### Other
 
 ```bash
-prodboard config    # Show current configuration
-prodboard version   # Show version
-prodboard help      # Show help
+prodboard config                                     # Show configuration
+prodboard version                                    # Show version
 ```
 
-## MCP Tools Reference
+IDs support prefix matching — use `a3f9` instead of the full `a3f9b2c1d4e5f678`.
 
-| Tool | Description |
-|------|-------------|
-| `board_summary` | Overview of issues by status, recent issues |
-| `list_issues` | List issues with optional filters |
-| `get_issue` | Get full issue details with comments |
-| `create_issue` | Create a new issue |
-| `update_issue` | Update issue fields |
-| `delete_issue` | Delete an issue |
-| `add_comment` | Add a comment (default author: claude) |
-| `pick_next_issue` | Claim next todo, move to in-progress |
-| `complete_issue` | Mark done with optional comment |
-| `list_schedules` | List scheduled tasks |
-| `create_schedule` | Create a scheduled task |
-| `update_schedule` | Update a scheduled task |
-| `delete_schedule` | Delete a scheduled task |
-| `list_runs` | View run history |
+## MCP Tools
 
-### MCP Resources
+These are the tools Claude Code sees when connected to the board:
 
-| URI | Description |
-|-----|-------------|
-| `prodboard://issues` | Board summary (same as board_summary) |
-| `prodboard://schedules` | Active schedules with next run times |
+| Tool | What Claude Uses It For |
+|------|------------------------|
+| `board_summary` | See issue counts and recent activity |
+| `list_issues` | Browse issues with filters |
+| `get_issue` | Read full issue details and comments |
+| `create_issue` | Log a new task or bug |
+| `update_issue` | Change title, description, or status |
+| `delete_issue` | Remove an issue |
+| `add_comment` | Leave notes on issues (default author: "claude") |
+| `pick_next_issue` | Claim the oldest todo, move to in-progress |
+| `complete_issue` | Mark done with an optional summary comment |
+| `list_schedules` | See scheduled jobs |
+| `create_schedule` | Set up a new cron job |
+| `update_schedule` | Modify a schedule |
+| `delete_schedule` | Remove a schedule |
+| `list_runs` | Check run history and results |
+
+MCP resources: `prodboard://issues` (board summary) and `prodboard://schedules` (active schedules).
 
 ## Configuration
 
-Config file: `~/.prodboard/config.jsonc` (JSONC format — comments allowed)
+Config file: `~/.prodboard/config.jsonc`
 
 ```jsonc
 {
   "general": {
-    // Issue statuses in display order
     "statuses": ["todo", "in-progress", "review", "done", "archived"],
-    // Default status for new issues
     "defaultStatus": "todo",
-    // Optional prefix for issue IDs
     "idPrefix": ""
   },
   "daemon": {
-    // Max concurrent scheduled runs
     "maxConcurrentRuns": 2,
-    // Default max turns for Claude
     "maxTurns": 50,
-    // Absolute max (cannot be overridden)
     "hardMaxTurns": 200,
-    // Run timeout in seconds
     "runTimeoutSeconds": 1800,
-    // Days to keep run history
     "runRetentionDays": 30,
-    // Log level: debug, info, warn, error
     "logLevel": "info",
-    // Worktree usage: auto, always, never
     "useWorktrees": "auto"
   }
 }
 ```
 
-## Scheduler Guide
+## Scheduler Details
 
 ### Cron Syntax
 
-Standard 5-field cron expressions:
+Standard 5-field cron:
 
 ```
-minute (0-59)
-hour (0-23)
-day of month (1-31)
-month (1-12)
-day of week (0-6, 0=Sunday)
+┌───────────── minute (0-59)
+│ ┌─────────── hour (0-23)
+│ │ ┌───────── day of month (1-31)
+│ │ │ ┌─────── month (1-12)
+│ │ │ │ ┌───── day of week (0-6, Sun=0)
+│ │ │ │ │
+* * * * *
 ```
 
-Examples:
-- `0 9 * * 1-5` — Weekdays at 9:00 AM
-- `*/15 * * * *` — Every 15 minutes
-- `0 0 1 * *` — First of every month at midnight
-- `0 9,17 * * *` — 9 AM and 5 PM daily
+| Expression | Meaning |
+|-----------|---------|
+| `0 9 * * 1-5` | Weekdays at 9 AM |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 0 1 * *` | First of every month |
+| `0 9,17 * * *` | 9 AM and 5 PM daily |
 
 ### Template Variables
 
-Use in schedule prompts:
+Use in schedule prompts to inject board context:
 
-| Variable | Description |
-|----------|-------------|
-| `{{board_summary}}` | Compact summary: "3 todo, 1 in-progress, 0 review" |
+| Variable | Value |
+|----------|-------|
+| `{{board_summary}}` | "3 todo, 1 in-progress, 0 review" |
 | `{{todo_count}}` | Number of todo issues |
 | `{{in_progress_count}}` | Number of in-progress issues |
 | `{{datetime}}` | Current ISO 8601 timestamp |
 | `{{schedule_name}}` | Name of the schedule |
 
-Example:
-
 ```bash
 prodboard schedule add \
   --name "morning-standup" \
   --cron "0 9 * * 1-5" \
-  --prompt "Board status: {{board_summary}}. Pick and work on the next todo issue."
+  --prompt "Board: {{board_summary}}. Pick the next todo and work on it."
 ```
 
-## Running as a Service
-
-### systemd
+### Running as a systemd Service
 
 Create `/etc/systemd/system/prodboard.service`:
 
@@ -262,24 +226,18 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl enable prodboard
-sudo systemctl start prodboard
-sudo systemctl status prodboard
+sudo systemctl enable --now prodboard
 ```
 
 ## Troubleshooting
 
-**"prodboard is not initialized"**
-Run `prodboard init` to create `~/.prodboard/`.
+**"prodboard is not initialized"** — Run `prodboard init`.
 
-**MCP server not connecting**
-Check that `~/.prodboard/mcp.json` exists and the path to prodboard is correct.
+**MCP not connecting** — Verify `claude mcp add prodboard -- bunx prodboard mcp` was run, or check `~/.prodboard/mcp.json`.
 
-**Daemon not starting**
-Check `~/.prodboard/logs/daemon.log` for errors. Ensure claude CLI is installed and accessible.
+**Daemon not starting** — Check `~/.prodboard/logs/daemon.log`. Make sure `claude` CLI is installed and `ANTHROPIC_API_KEY` is set.
 
-**Stale PID file**
-If `prodboard daemon status` shows "stale PID file", the daemon crashed. It will auto-clean the PID file. Run `prodboard daemon` to restart.
+**Stale PID file** — The daemon crashed. Run `prodboard daemon` to restart (auto-cleans stale PIDs).
 
 ## Development
 
