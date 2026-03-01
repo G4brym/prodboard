@@ -46,7 +46,7 @@ export function buildInvocation(
   args.push("--dangerously-skip-permissions");
 
   // Output format
-  args.push("--output-format", "stream-json");
+  args.push("--verbose", "--output-format", "stream-json");
 
   // MCP config
   const mcpConfigPath = path.join(PRODBOARD_DIR, "mcp.json");
