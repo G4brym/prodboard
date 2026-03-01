@@ -38,11 +38,21 @@ jobs:
         id: pre
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
+      - name: Check if version is already published
+        id: check
+        run: |
+          VERSION="${{ steps.pre.outputs.version }}"
+          if npm view "prodboard@${VERSION}" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: npm publish --provenance --access public
+          publish: ${{ steps.check.outputs.published == 'false' && 'npm publish --provenance --access public' || 'echo Already published, skipping' }}
           version: bunx changeset version
           title: "chore: version packages"
           commit: "chore: version packages"
@@ -50,24 +60,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
-        if: steps.changesets.outputs.published == 'true' || steps.changesets.outputs.hasChangesets == 'false'
+        if: always() && steps.changesets.outcome != 'cancelled'
         run: |
           VERSION="${{ steps.pre.outputs.version }}"
           TAG="v${VERSION}"
-          # Only create release if the tag doesn't already exist
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists, skipping."
+          elif npm view "prodboard@${VERSION}" version >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              --latest
+            echo "Created release $TAG"
           else
-            # Verify the version is actually on npm before creating a release
-            if npm view "prodboard@${VERSION}" version >/dev/null 2>&1; then
-              gh release create "$TAG" \
-                --title "$TAG" \
-                --generate-notes \
-                --latest
-              echo "Created release $TAG"
-            else
-              echo "Version ${VERSION} not found on npm, skipping release."
-            fi
+            echo "Version ${VERSION} not on npm, skipping release."
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
