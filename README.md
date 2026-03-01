@@ -32,35 +32,80 @@ prodboard init
 claude mcp add prodboard -- bunx prodboard mcp
 ```
 
-That's it. Claude Code can now use tools like `board_summary`, `pick_next_issue`, `create_issue`, and `complete_issue` in any session.
+That's it. Open Claude Code and start talking to it:
 
-### Add Some Issues
+## Things You Can Say to Claude Code
+
+Once connected, you can manage your board entirely through conversation:
+
+### Managing Tasks
+
+```
+"Add a task to fix the authentication timeout bug in the API"
+
+"What's on the board right now?"
+
+"Pick up the next task and start working on it"
+
+"Mark the login bug as done, I fixed it manually"
+
+"Create an issue to refactor the database layer, mark it as todo"
+
+"Show me all in-progress issues"
+
+"Add a comment to the auth bug — we need to check the session TTL"
+```
+
+### Setting Up Cron Jobs
+
+```
+"Create a cron job that runs every 6 hours to check for
+ and fix any TypeScript type errors in the project"
+
+"Set up a daily schedule at 9 AM on weekdays to review
+ the board and work on the highest priority task"
+
+"Add a cron job that runs every night at midnight to
+ run the test suite and create issues for any failures"
+
+"Schedule a weekly cleanup every Friday at 5 PM to
+ archive all done issues and summarize what was accomplished"
+
+"Create a schedule that runs every 30 minutes to monitor
+ the API health endpoint and create an issue if it's down"
+```
+
+### Reviewing Activity
+
+```
+"Show me what the last cron run did"
+
+"What tasks did you complete this week?"
+
+"Show the schedule stats for the daily triage job"
+```
+
+Claude Code handles all the MCP tool calls behind the scenes — you just talk to it naturally.
+
+## Adding Tasks from the CLI
+
+You can also manage the board directly:
 
 ```bash
 prodboard add "Fix login bug" -d "OAuth callback URL is wrong" -s todo
 prodboard add "Add dark mode" -s todo
 prodboard add "Write API tests" -s todo
+prodboard ls
 ```
 
-### Let Claude Work Through Them
-
-In any Claude Code session, Claude can now:
-- Run `board_summary` to see what's on the board
-- Run `pick_next_issue` to claim a task and move it to in-progress
-- Work on the task using its normal tools
-- Run `complete_issue` when done, with a comment about what was accomplished
-
-### Schedule Recurring Jobs
+### Starting the Scheduler
 
 ```bash
-# Every weekday at 9 AM: triage new issues
-prodboard schedule add \
-  --name "daily-triage" \
-  --cron "0 9 * * 1-5" \
-  --prompt "Review the board: {{board_summary}}. Pick the highest priority todo and work on it."
-
-# Start the daemon
+# Start the cron daemon (keeps running in foreground)
 prodboard daemon
+
+# Or preview what's scheduled without running anything
+prodboard daemon --dry-run
 ```
 
 ## CLI Reference
