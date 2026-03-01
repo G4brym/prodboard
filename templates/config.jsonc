@@ -1,0 +1,38 @@
+{
+  // prodboard configuration
+  // See config.schema.json for full documentation
+
+  "general": {
+    // Issue statuses (order matters for board display)
+    // "statuses": ["todo", "in-progress", "review", "done", "archived"],
+
+    // Default status for new issues
+    // "defaultStatus": "todo",
+
+    // Optional prefix for issue IDs (e.g., "PB-")
+    // "idPrefix": ""
+  },
+
+  "daemon": {
+    // Maximum concurrent scheduled runs
+    // "maxConcurrentRuns": 2,
+
+    // Default max turns for Claude invocations
+    // "maxTurns": 50,
+
+    // Absolute maximum turns (cannot be overridden by schedules)
+    // "hardMaxTurns": 200,
+
+    // Timeout per run in seconds (default: 30 minutes)
+    // "runTimeoutSeconds": 1800,
+
+    // Days to retain run history
+    // "runRetentionDays": 30,
+
+    // Log level: "debug", "info", "warn", "error"
+    // "logLevel": "info",
+
+    // Worktree usage: "auto", "always", "never"
+    // "useWorktrees": "auto"
+  }
+}

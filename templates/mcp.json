@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "prodboard": {
+      "command": "bunx",
+      "args": ["prodboard", "mcp"]
+    }
+  }
+}

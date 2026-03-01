@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "prodboard Configuration",
+  "type": "object",
+  "properties": {
+    "general": {
+      "type": "object",
+      "properties": {
+        "statuses": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["todo", "in-progress", "review", "done", "archived"],
+          "description": "Issue statuses in display order"
+        },
+        "defaultStatus": {
+          "type": "string",
+          "default": "todo",
+          "description": "Default status for new issues"
+        },
+        "idPrefix": {
+          "type": "string",
+          "default": "",
+          "description": "Optional prefix for issue IDs"
+        }
+      },
+      "additionalProperties": false
+    },
+    "daemon": {
+      "type": "object",
+      "properties": {
+        "maxConcurrentRuns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2,
+          "description": "Maximum concurrent scheduled runs"
+        },
+        "maxTurns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 50,
+          "description": "Default max turns for Claude invocations"
+        },
+        "hardMaxTurns": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 200,
+          "description": "Absolute max turns (cannot be overridden)"
+        },
+        "runTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "default": 1800,
+          "description": "Timeout per run in seconds"
+        },
+        "runRetentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Days to retain run history"
+        },
+        "logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Daemon log level"
+        },
+        "logMaxSizeMb": {
+          "type": "number",
+          "minimum": 1,
+          "default": 10,
+          "description": "Max log file size in MB"
+        },
+        "logMaxFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5,
+          "description": "Max number of rotated log files"
+        },
+        "defaultAllowedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default tools allowed for scheduled runs"
+        },
+        "nonGitDefaultAllowedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default tools for non-git environments"
+        },
+        "useWorktrees": {
+          "type": "string",
+          "enum": ["auto", "always", "never"],
+          "default": "auto",
+          "description": "Worktree usage strategy"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

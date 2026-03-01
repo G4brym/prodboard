@@ -1,0 +1,29 @@
+{
+  "name": "prodboard",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "prodboard": "bin/prodboard.ts",
+    "pb": "bin/prodboard.ts"
+  },
+  "scripts": {
+    "dev": "bun run bin/prodboard.ts",
+    "test": "bun test",
+    "typecheck": "bun x tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "templates/",
+    "config.schema.json"
+  ],
+  "devDependencies": {
+    "@types/bun": "^1.3.9"
+  }
+}
