@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.1.3
+
+### Patch Changes
+
+- 79dd032: Auto-initialize prodboard when the MCP server starts, removing the need to run `prodboard init` separately
+
 ## 0.1.2
 
 ### Patch Changes
