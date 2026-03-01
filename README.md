@@ -265,26 +265,18 @@ prodboard schedule add \
 
 ### Running as a systemd Service
 
-Create `/etc/systemd/system/prodboard.service`:
-
-```ini
-[Unit]
-Description=prodboard scheduler daemon
-After=network.target
-
-[Service]
-Type=simple
-User=your-user
-ExecStart=/usr/local/bin/bun run prodboard daemon
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
 ```bash
-sudo systemctl enable --now prodboard
+# Install and start as a user-level systemd service (no sudo needed)
+prodboard install
+
+# Check status
+systemctl --user status prodboard
+
+# Remove the service
+prodboard uninstall
+
+# Reinstall (e.g. after updating prodboard)
+prodboard install --force
 ```
 
 ## Troubleshooting

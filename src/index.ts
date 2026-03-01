@@ -142,6 +142,17 @@ export async function main(): Promise<void> {
         }
         break;
       }
+      case "install": {
+        ensureInitialized();
+        const { install } = await import("./commands/install.ts");
+        await install(args.slice(1));
+        break;
+      }
+      case "uninstall": {
+        const { uninstall } = await import("./commands/install.ts");
+        await uninstall(args.slice(1));
+        break;
+      }
       case "config": {
         ensureInitialized();
         const { loadConfig } = await import("./config.ts");
@@ -191,6 +202,8 @@ Commands:
   comments <id>     List comments for an issue
   schedule <sub>    Manage scheduled tasks
   daemon            Start the scheduler daemon
+  install           Install systemd service
+  uninstall         Remove systemd service
   config            Show configuration
   mcp               Start MCP server (stdio)
   version           Show version
