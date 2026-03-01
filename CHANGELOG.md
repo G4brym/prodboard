@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.1.2
+
+### Patch Changes
+
+- a9f2241: Fix daemon failing immediately by adding `--verbose` flag required for `--output-format stream-json` in print mode
+
 ## 0.1.1
 
 ### Patch Changes
