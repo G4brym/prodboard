@@ -19,7 +19,7 @@ export function createComment(
 
 export function listComments(db: Database, issueId: string): Comment[] {
   return db
-    .query("SELECT * FROM comments WHERE issue_id = ? ORDER BY created_at ASC")
+    .query("SELECT * FROM comments WHERE issue_id = ? ORDER BY created_at ASC, rowid ASC")
     .all(issueId) as Comment[];
 }
 

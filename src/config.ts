@@ -28,7 +28,7 @@ export function stripJsoncComments(text: string): string {
     }
 
     // Check for string start
-    if (text[i] === '"' || text[i] === "'") {
+    if (text[i] === '"') {
       inString = true;
       stringChar = text[i];
       result += text[i];

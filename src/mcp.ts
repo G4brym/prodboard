@@ -17,11 +17,12 @@ import { createComment, listComments, getCommentCount } from "./queries/comments
 import type { Config } from "./types.ts";
 
 // Lazy-load schedule/run queries (they may not exist yet during early phases)
-let scheduleQueries: any = null;
-let runQueries: any = null;
+// undefined = not tried, null = failed permanently, object = loaded
+let scheduleQueries: any = undefined;
+let runQueries: any = undefined;
 
 async function getScheduleQueries() {
-  if (!scheduleQueries) {
+  if (scheduleQueries === undefined) {
     try {
       scheduleQueries = await import("./queries/schedules.ts");
     } catch {
@@ -32,7 +33,7 @@ async function getScheduleQueries() {
 }
 
 async function getRunQueries() {
-  if (!runQueries) {
+  if (runQueries === undefined) {
     try {
       runQueries = await import("./queries/runs.ts");
     } catch {
@@ -303,7 +304,7 @@ export function handleBoardSummary(db: Database) {
   };
 }
 
-export function handlePickNextIssue(db: Database, params: any) {
+export function handlePickNextIssue(db: Database, config: Config, params: any) {
   const status = params?.status ?? "todo";
   const { issues } = listIssues(db, {
     status: [status],
@@ -317,6 +318,7 @@ export function handlePickNextIssue(db: Database, params: any) {
   }
 
   const issue = issues[0];
+  validateStatus("in-progress", config);
   updateIssue(db, issue.id, { status: "in-progress" });
   createComment(db, {
     issue_id: issue.id,
@@ -329,8 +331,9 @@ export function handlePickNextIssue(db: Database, params: any) {
   return { ...updated, comments };
 }
 
-export function handleCompleteIssue(db: Database, params: any) {
+export function handleCompleteIssue(db: Database, config: Config, params: any) {
   const id = resolveIssueId(db, params.id);
+  validateStatus("done", config);
   updateIssue(db, id, { status: "done" });
 
   if (params.comment) {
@@ -349,7 +352,7 @@ export function handleCompleteIssue(db: Database, params: any) {
 export async function handleListSchedules(db: Database, params: any) {
   const sq = await getScheduleQueries();
   const rq = await getRunQueries();
-  if (!sq) return { schedules: [], message: "Schedule module not available" };
+  if (!sq) return [];
 
   const schedules = sq.listSchedules(db, {
     includeDisabled: params?.include_disabled,
@@ -419,7 +422,7 @@ export async function handleDeleteSchedule(db: Database, params: any) {
 
 export async function handleListRuns(db: Database, params: any) {
   const rq = await getRunQueries();
-  if (!rq) return { runs: [], message: "Run module not available" };
+  if (!rq) return [];
 
   return rq.listRuns(db, {
     schedule_id: params?.schedule_id,
@@ -451,40 +454,40 @@ export async function startMcpServer(): Promise<void> {
           result = handleListIssues(db, params ?? {});
           break;
         case "get_issue":
-          result = handleGetIssue(db, params);
+          result = handleGetIssue(db, params ?? {});
           break;
         case "create_issue":
-          result = handleCreateIssue(db, config, params);
+          result = handleCreateIssue(db, config, params ?? {});
           break;
         case "update_issue":
-          result = handleUpdateIssue(db, config, params);
+          result = handleUpdateIssue(db, config, params ?? {});
           break;
         case "delete_issue":
-          result = handleDeleteIssue(db, params);
+          result = handleDeleteIssue(db, params ?? {});
           break;
         case "add_comment":
-          result = handleAddComment(db, params);
+          result = handleAddComment(db, params ?? {});
           break;
         case "board_summary":
           result = handleBoardSummary(db);
           break;
         case "pick_next_issue":
-          result = handlePickNextIssue(db, params ?? {});
+          result = handlePickNextIssue(db, config, params ?? {});
           break;
         case "complete_issue":
-          result = handleCompleteIssue(db, params);
+          result = handleCompleteIssue(db, config, params ?? {});
           break;
         case "list_schedules":
           result = await handleListSchedules(db, params ?? {});
           break;
         case "create_schedule":
-          result = await handleCreateSchedule(db, params);
+          result = await handleCreateSchedule(db, params ?? {});
           break;
         case "update_schedule":
-          result = await handleUpdateSchedule(db, params);
+          result = await handleUpdateSchedule(db, params ?? {});
           break;
         case "delete_schedule":
-          result = await handleDeleteSchedule(db, params);
+          result = await handleDeleteSchedule(db, params ?? {});
           break;
         case "list_runs":
           result = await handleListRuns(db, params ?? {});
@@ -512,31 +515,27 @@ export async function startMcpServer(): Promise<void> {
 
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
-    try {
-      if (uri === "prodboard://issues") {
-        const summary = handleBoardSummary(db);
-        return {
-          contents: [{
-            uri,
-            mimeType: "application/json",
-            text: JSON.stringify(summary, null, 2),
-          }],
-        };
-      }
-      if (uri === "prodboard://schedules") {
-        const schedules = await handleListSchedules(db, {});
-        return {
-          contents: [{
-            uri,
-            mimeType: "application/json",
-            text: JSON.stringify(schedules, null, 2),
-          }],
-        };
-      }
-      throw new Error(`Unknown resource: ${uri}`);
-    } catch (err: any) {
-      throw err;
+    if (uri === "prodboard://issues") {
+      const summary = handleBoardSummary(db);
+      return {
+        contents: [{
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify(summary, null, 2),
+        }],
+      };
     }
+    if (uri === "prodboard://schedules") {
+      const schedules = await handleListSchedules(db, {});
+      return {
+        contents: [{
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify(schedules, null, 2),
+        }],
+      };
+    }
+    throw new Error(`Unknown resource: ${uri}`);
   });
 
   const transport = new StdioServerTransport();

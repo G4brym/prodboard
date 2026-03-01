@@ -38,7 +38,7 @@ export async function comment(args: string[], dbOverride?: Database): Promise<vo
 
   if (!issueIdOrPrefix || !body) {
     console.error("Usage: prodboard comment <issue-id> <body> [--author/-a author]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -60,7 +60,7 @@ export async function comments(args: string[], dbOverride?: Database): Promise<v
 
   if (!issueIdOrPrefix) {
     console.error("Usage: prodboard comments <issue-id> [--json]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();

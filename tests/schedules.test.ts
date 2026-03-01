@@ -15,7 +15,7 @@ beforeEach(() => {
 describe("Schedule Queries", () => {
   test("create schedule", () => {
     const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "do stuff" });
-    expect(s.id).toMatch(/^[0-9a-f]{8}$/);
+    expect(s.id).toMatch(/^[0-9a-f]{16}$/);
     expect(s.name).toBe("test");
     expect(s.cron).toBe("* * * * *");
     expect(s.enabled).toBe(1);

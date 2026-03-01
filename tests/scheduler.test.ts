@@ -72,9 +72,13 @@ describe("CronLoop", () => {
     // Create a schedule that fires every minute
     createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
 
-    // tick() will try to fire but claude won't exist — that's fine
-    // We just verify it doesn't crash
+    // tick() will try to fire but claude won't exist — execution will fail
+    // but a run record should still be created
     await loop.tick();
+
+    const { listRuns } = await import("../src/queries/runs.ts");
+    const runs = listRuns(db, {});
+    expect(runs.length).toBeGreaterThanOrEqual(1);
   });
 
   test("disabled schedules are skipped", async () => {

@@ -12,6 +12,12 @@ import { confirm } from "../confirm.ts";
 import { ExecutionManager } from "../scheduler.ts";
 import { createRun } from "../queries/runs.ts";
 
+function safeParseInt(val: string | boolean | undefined): number | undefined {
+  if (typeof val !== "string") return undefined;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? undefined : n;
+}
+
 function parseArgs(args: string[]): { flags: Record<string, string | boolean>; positional: string[] } {
   const flags: Record<string, string | boolean> = {};
   const positional: string[] = [];
@@ -53,13 +59,13 @@ export async function scheduleAdd(args: string[], dbOverride?: Database): Promis
 
   if (!name || !cron || !prompt) {
     console.error("Usage: prodboard schedule add --name <name> --cron <expr> --prompt <prompt>");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const validation = validateCron(cron);
   if (!validation.valid) {
     console.error(`Invalid cron expression: ${validation.error}`);
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const schedule = createSchedule(db, {
@@ -115,7 +121,7 @@ export async function scheduleEdit(args: string[], dbOverride?: Database): Promi
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard schedule edit <id> [--name name] [--cron expr] [--prompt prompt]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -128,7 +134,7 @@ export async function scheduleEdit(args: string[], dbOverride?: Database): Promi
     const validation = validateCron(newCron);
     if (!validation.valid) {
       console.error(`Invalid cron expression: ${validation.error}`);
-      process.exit(1);
+      throw new Error("Invalid arguments");
     }
     fields.cron = newCron;
   }
@@ -144,7 +150,7 @@ export async function scheduleEnable(args: string[], dbOverride?: Database): Pro
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard schedule enable <id>");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -158,7 +164,7 @@ export async function scheduleDisable(args: string[], dbOverride?: Database): Pr
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard schedule disable <id>");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -172,7 +178,7 @@ export async function scheduleRm(args: string[], dbOverride?: Database): Promise
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard schedule rm <id> [--force/-f]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -198,7 +204,7 @@ export async function scheduleLogs(args: string[], dbOverride?: Database): Promi
   const runs = listRuns(db, {
     schedule_id: (flags.schedule ?? flags.s) as string | undefined,
     status: flags.status as string | undefined,
-    limit: flags.limit || flags.n ? parseInt((flags.limit ?? flags.n) as string, 10) : undefined,
+    limit: safeParseInt(flags.limit ?? flags.n),
   });
 
   if (isJson) {
@@ -231,7 +237,7 @@ export async function scheduleRun(args: string[], dbOverride?: Database): Promis
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard schedule run <id>");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -257,7 +263,7 @@ export async function scheduleStats(args: string[], dbOverride?: Database): Prom
   const db = dbOverride ?? ensureDb();
 
   const scheduleId = (flags.schedule ?? flags.s) as string | undefined;
-  const days = flags.days || flags.d ? parseInt((flags.days ?? flags.d) as string, 10) : undefined;
+  const days = safeParseInt(flags.days ?? flags.d);
 
   const stats = getScheduleStats(db, scheduleId, days);
 

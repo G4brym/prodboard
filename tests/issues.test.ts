@@ -16,7 +16,7 @@ beforeEach(() => {
 describe("Issue Queries", () => {
   test("create issue with defaults", () => {
     const issue = createIssue(db, { title: "Test issue" });
-    expect(issue.id).toMatch(/^[0-9a-f]{8}$/);
+    expect(issue.id).toMatch(/^[0-9a-f]{16}$/);
     expect(issue.title).toBe("Test issue");
     expect(issue.status).toBe("todo");
     expect(issue.description).toBe("");

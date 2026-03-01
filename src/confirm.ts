@@ -4,6 +4,7 @@ export async function confirm(message: string): Promise<boolean> {
     let data = "";
     process.stdin.setEncoding("utf-8");
     process.stdin.once("data", (chunk: string) => {
+      process.stdin.pause();
       data += chunk;
       resolve(data.trim().toLowerCase());
     });

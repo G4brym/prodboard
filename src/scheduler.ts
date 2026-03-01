@@ -127,6 +127,7 @@ export class ExecutionManager {
     const events: StreamEvent[] = [];
 
     let proc: any;
+    let timeoutId: Timer | undefined;
     try {
       proc = Bun.spawn(args, {
         cwd: schedule.workdir,
@@ -139,7 +140,7 @@ export class ExecutionManager {
 
       // Set up timeout
       const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
-      const timeoutId = setTimeout(() => {
+      timeoutId = setTimeout(() => {
         try {
           proc.kill("SIGTERM");
           setTimeout(() => {
@@ -180,7 +181,6 @@ export class ExecutionManager {
       }
 
       const exitCode = await proc.exited;
-      clearTimeout(timeoutId);
 
       const costData = extractCostData(events);
       const now = new Date().toISOString().replace("T", " ").slice(0, 19);
@@ -212,8 +212,10 @@ export class ExecutionManager {
       updateRun(this.db, run.id, {
         status: "failed",
         finished_at: now,
-        stderr_tail: err.message,
+        stderr_tail: err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
   }
 }
@@ -221,6 +223,7 @@ export class ExecutionManager {
 export class CronLoop {
   private interval: Timer | null = null;
   private lastFired: Map<string, number> = new Map();
+  private isRunning = false;
 
   constructor(
     private db: Database,
@@ -242,6 +245,8 @@ export class CronLoop {
   }
 
   async tick(): Promise<void> {
+    if (this.isRunning) return;
+    this.isRunning = true;
     try {
       const now = new Date();
       const minuteTs = Math.floor(now.getTime() / 60000);
@@ -260,18 +265,25 @@ export class CronLoop {
           const runningRuns = getRunningRuns(this.db);
           if (runningRuns.length >= this.config.daemon.maxConcurrentRuns) continue;
 
-          this.lastFired.set(schedule.id, minuteTs);
-
           const run = createRun(this.db, {
             schedule_id: schedule.id,
             prompt_used: schedule.prompt,
           });
 
+          // Mark fired only after successful run creation
+          this.lastFired.set(schedule.id, minuteTs);
+
           // Execute async - don't block the loop
           this.executionManager.executeRun(schedule, run).catch(() => {});
-        } catch {}
+        } catch (err) {
+          console.error(`[prodboard] Error evaluating schedule ${schedule.id}:`, err instanceof Error ? err.message : String(err));
+        }
       }
-    } catch {}
+    } catch (err) {
+      console.error("[prodboard] Error in tick:", err instanceof Error ? err.message : String(err));
+    } finally {
+      this.isRunning = false;
+    }
   }
 }
 
@@ -341,14 +353,21 @@ export class Daemon {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      // Mark remaining as cancelled
+      // Kill remaining processes first, then mark cancelled
       const stillRunning = getRunningRuns(this.db);
       for (const run of stillRunning) {
-        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
-        updateRun(this.db, run.id, { status: "cancelled", finished_at: now });
         if (run.pid) {
           try { process.kill(run.pid, "SIGTERM"); } catch {}
         }
+      }
+      // Brief wait for processes to exit after SIGTERM
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      for (const run of stillRunning) {
+        if (run.pid) {
+          try { process.kill(run.pid, "SIGKILL"); } catch {}
+        }
+        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+        updateRun(this.db, run.id, { status: "cancelled", finished_at: now });
       }
     }
 

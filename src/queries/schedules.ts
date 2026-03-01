@@ -49,9 +49,10 @@ export function getScheduleByPrefix(db: Database, prefix: string): Schedule {
   const exact = getSchedule(db, prefix);
   if (exact) return exact;
 
+  const escaped = prefix.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
   const matches = db
-    .query("SELECT * FROM schedules WHERE id LIKE ? || '%'")
-    .all(prefix) as Schedule[];
+    .query("SELECT * FROM schedules WHERE id LIKE ? || '%' ESCAPE '\\'")
+    .all(escaped) as Schedule[];
 
   if (matches.length === 0) throw new Error(`Schedule not found: ${prefix}`);
   if (matches.length > 1) throw new Error(`Ambiguous prefix '${prefix}': matches ${matches.map((m) => m.id).join(", ")}`);
@@ -84,12 +85,16 @@ export function updateSchedule(
     persist_session: "persist_session", agents_json: "agents_json",
   };
 
+  let hasRealFields = false;
   for (const [key, col] of Object.entries(fieldMap)) {
     if ((fields as any)[key] !== undefined) {
       sets.push(`${col} = ?`);
       params.push((fields as any)[key]);
+      hasRealFields = true;
     }
   }
+
+  if (!hasRealFields) return getSchedule(db, id)!;
 
   params.push(id);
   db.query(`UPDATE schedules SET ${sets.join(", ")} WHERE id = ?`).run(...params);

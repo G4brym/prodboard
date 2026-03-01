@@ -2,15 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { generateId } from "../src/ids.ts";
 
 describe("ID Generation", () => {
-  test("returns 8-char hex string", () => {
+  test("returns 16-char hex string", () => {
     const id = generateId();
-    expect(id.length).toBe(8);
+    expect(id.length).toBe(16);
   });
 
   test("only contains hex chars [0-9a-f]", () => {
     for (let i = 0; i < 100; i++) {
       const id = generateId();
-      expect(id).toMatch(/^[0-9a-f]{8}$/);
+      expect(id).toMatch(/^[0-9a-f]{16}$/);
     }
   });
 

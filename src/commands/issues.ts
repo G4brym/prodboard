@@ -91,7 +91,7 @@ export async function add(args: string[], dbOverride?: Database): Promise<void> 
   const title = positional.join(" ");
   if (!title) {
     console.error("Usage: prodboard add <title> [-d description] [-s status]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -158,7 +158,7 @@ export async function show(args: string[], dbOverride?: Database): Promise<void>
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard show <id>");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -197,7 +197,7 @@ export async function edit(args: string[], dbOverride?: Database): Promise<void>
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard edit <id> [--title/-t title] [--description/-d desc] [--status/-s status]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -218,7 +218,7 @@ export async function edit(args: string[], dbOverride?: Database): Promise<void>
 
   if (Object.keys(fields).length === 0) {
     console.error("No fields to update. Use --title, --description, or --status.");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const updated = updateIssue(db, issue.id, fields);
@@ -232,7 +232,7 @@ export async function mv(args: string[], dbOverride?: Database): Promise<void> {
 
   if (!idOrPrefix || !newStatus) {
     console.error("Usage: prodboard mv <id> <status>");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();
@@ -249,7 +249,7 @@ export async function rm(args: string[], dbOverride?: Database): Promise<void> {
   const idOrPrefix = positional[0];
   if (!idOrPrefix) {
     console.error("Usage: prodboard rm <id> [--force/-f]");
-    process.exit(1);
+    throw new Error("Invalid arguments");
   }
 
   const db = dbOverride ?? ensureDb();

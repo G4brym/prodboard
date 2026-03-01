@@ -169,7 +169,7 @@ export async function main(): Promise<void> {
       console.error(`Database error: ${err.message}`);
       process.exit(2);
     }
-    console.error(err.message);
+    console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }

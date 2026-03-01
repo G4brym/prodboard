@@ -66,14 +66,13 @@ export class Logger {
       if (stat.size < this.maxSizeBytes) return;
 
       // Shift existing rotated files
-      for (let i = this.maxFiles - 1; i >= 1; i--) {
+      for (let i = this.maxFiles; i >= 1; i--) {
         const src = path.join(this.logDir, `daemon.${i}.log`);
-        const dst = path.join(this.logDir, `daemon.${i + 1}.log`);
         if (fs.existsSync(src)) {
-          if (i + 1 > this.maxFiles) {
+          if (i >= this.maxFiles) {
             fs.unlinkSync(src);
           } else {
-            fs.renameSync(src, dst);
+            fs.renameSync(src, path.join(this.logDir, `daemon.${i + 1}.log`));
           }
         }
       }

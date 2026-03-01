@@ -110,7 +110,7 @@ describe("MCP Tool Handlers", () => {
     test("returns oldest todo, moves to in-progress, adds comment", () => {
       const first = createIssue(db, { title: "First" });
       createIssue(db, { title: "Second" });
-      const result = handlePickNextIssue(db, {}) as any;
+      const result = handlePickNextIssue(db, config, {}) as any;
       expect(result.id).toBe(first.id);
       expect(result.status).toBe("in-progress");
       expect(result.comments.length).toBe(1);
@@ -118,7 +118,7 @@ describe("MCP Tool Handlers", () => {
     });
 
     test("with no todos returns null with message", () => {
-      const result = handlePickNextIssue(db, {});
+      const result = handlePickNextIssue(db, config, {});
       expect(result.picked).toBeNull();
       expect(result.message).toBeTruthy();
     });
@@ -127,14 +127,14 @@ describe("MCP Tool Handlers", () => {
   describe("complete_issue", () => {
     test("sets status=done, adds completion comment", () => {
       const issue = createIssue(db, { title: "Complete me", status: "in-progress" });
-      const result = handleCompleteIssue(db, { id: issue.id, comment: "All done!" });
+      const result = handleCompleteIssue(db, config, { id: issue.id, comment: "All done!" });
       expect(result.status).toBe("done");
       expect(result.comments.some((c: any) => c.body === "All done!")).toBe(true);
     });
 
     test("without comment still works", () => {
       const issue = createIssue(db, { title: "Complete me" });
-      const result = handleCompleteIssue(db, { id: issue.id });
+      const result = handleCompleteIssue(db, config, { id: issue.id });
       expect(result.status).toBe("done");
     });
   });

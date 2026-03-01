@@ -25,10 +25,9 @@ describe("CLI Schedule Commands", () => {
   });
 
   test("schedule add validates cron", async () => {
-    // Invalid cron calls process.exit, so we test the validation directly
-    const { validateCron } = require("../src/cron.ts");
-    const result = validateCron("bad");
-    expect(result.valid).toBe(false);
+    await expect(
+      scheduleAdd(["--name", "test", "--cron", "bad", "--prompt", "do stuff"], db)
+    ).rejects.toThrow("Invalid arguments");
   });
 
   test("schedule ls renders table", async () => {

@@ -32,6 +32,7 @@ export function parseCronField(field: string, min: number, max: number): Set<num
       }
 
       if (isNaN(start) || isNaN(end)) throw new Error(`Invalid range: ${range}`);
+      if (start < min || end > max) throw new Error(`Range ${start}-${end} out of bounds (${min}-${max})`);
 
       for (let i = start; i <= end; i += step) {
         result.add(i);
@@ -72,6 +73,7 @@ export function parseCronExpression(expr: string): CronFields {
   };
 }
 
+/** Cron expressions are evaluated in server-local time, matching standard crontab behavior. */
 export function shouldFire(expr: string, date: Date): boolean {
   const fields = parseCronExpression(expr);
   return (

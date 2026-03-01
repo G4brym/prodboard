@@ -27,9 +27,10 @@ export function getIssueByPrefix(db: Database, prefix: string): Issue {
   const exact = getIssue(db, prefix);
   if (exact) return exact;
 
+  const escaped = prefix.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
   const matches = db
-    .query("SELECT * FROM issues WHERE id LIKE ? || '%'")
-    .all(prefix) as Issue[];
+    .query("SELECT * FROM issues WHERE id LIKE ? || '%' ESCAPE '\\'")
+    .all(escaped) as Issue[];
 
   if (matches.length === 0) {
     throw new Error(`Issue not found: ${prefix}`);
@@ -76,8 +77,11 @@ export function listIssues(
   }
 
   const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
-  const sort = opts?.sort ?? "updated_at";
-  const order = opts?.order ?? "DESC";
+
+  const VALID_SORT = new Set(["updated_at", "created_at", "title", "status"]);
+  const VALID_ORDER = new Set(["ASC", "DESC"]);
+  const sort = VALID_SORT.has(opts?.sort ?? "") ? opts!.sort! : "updated_at";
+  const order = VALID_ORDER.has((opts?.order ?? "").toUpperCase()) ? (opts!.order!).toUpperCase() : "DESC";
   const limit = opts?.limit ?? 50;
 
   const countResult = db.query(`SELECT COUNT(*) as count FROM issues ${where}`).get(...params) as { count: number };
@@ -96,6 +100,9 @@ export function updateIssue(
 ): Issue {
   const issue = getIssue(db, id);
   if (!issue) throw new Error(`Issue not found: ${id}`);
+
+  const hasFields = fields.title !== undefined || fields.description !== undefined || fields.status !== undefined;
+  if (!hasFields) return issue;
 
   const now = new Date().toISOString().replace("T", " ").slice(0, 19);
   const sets: string[] = ["updated_at = ?"];
