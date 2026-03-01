@@ -25,10 +25,7 @@ Cron Daemon ──┘
 # Install
 bun install -g prodboard
 
-# Initialize
-prodboard init
-
-# Connect Claude Code to the board
+# Connect Claude Code to the board (auto-initializes on first use)
 claude mcp add prodboard -- bunx prodboard mcp
 ```
 

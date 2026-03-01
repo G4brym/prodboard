@@ -7,8 +7,9 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Database } from "bun:sqlite";
+import { existsSync } from "fs";
 import { ensureDb } from "./db.ts";
-import { loadConfig } from "./config.ts";
+import { loadConfig, PRODBOARD_DIR } from "./config.ts";
 import {
   createIssue, getIssueByPrefix, listIssues, updateIssue,
   deleteIssue, getIssueCounts, validateStatus, resolveIssueId,
@@ -432,6 +433,10 @@ export async function handleListRuns(db: Database, params: any) {
 }
 
 export async function startMcpServer(): Promise<void> {
+  if (!existsSync(PRODBOARD_DIR)) {
+    const { init } = await import("./commands/init.ts");
+    await init([]);
+  }
   const db = ensureDb();
   const config = loadConfig();
   const pkg = await import("../package.json");

@@ -161,7 +161,6 @@ export async function main(): Promise<void> {
         break;
       }
       case "mcp": {
-        ensureInitialized();
         const { startMcpServer } = await import("./mcp.ts");
         await startMcpServer();
         break;

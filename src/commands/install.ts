@@ -71,7 +71,8 @@ export async function install(args: string[]): Promise<void> {
   const alreadyInstalled = fs.existsSync(SERVICE_PATH);
 
   if (alreadyInstalled && !flags.force) {
-    console.log("prodboard is already installed as a systemd service.");
+    console.log("prodboard is already installed as a systemd service. Restarting...");
+    await runSystemctl("restart", SERVICE_NAME);
     const { stdout } = await runSystemctl("status", SERVICE_NAME);
     console.log(stdout);
     return;
@@ -99,7 +100,7 @@ export async function install(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const start = await runSystemctl("start", SERVICE_NAME);
+  const start = await runSystemctl("restart", SERVICE_NAME);
   if (start.exitCode !== 0) {
     console.error("Failed to start service:", start.stderr);
     process.exit(1);
