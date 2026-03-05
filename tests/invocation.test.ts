@@ -12,6 +12,7 @@ function makeEnv(overrides?: Partial<EnvironmentInfo>): EnvironmentInfo {
   return {
     hasGit: true,
     hasClaude: true,
+    hasOpencode: false,
     worktreeSupported: true,
     ...overrides,
   };
@@ -86,19 +87,8 @@ describe("Invocation Builder", () => {
     expect(toolArgs).toEqual(["CustomTool"]);
   });
 
-  test("worktree flag added when supported", () => {
+  test("no --worktree flag (prodboard manages worktrees itself)", () => {
     const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
-    const r = createRun(db, { schedule_id: s.id, prompt_used: "go" });
-    const config = createTestConfig();
-    const args = buildInvocation(s, r, config, makeEnv(), "go", db);
-    expect(args).toContain("--worktree");
-  });
-
-  test("no worktree flag when use_worktree=false", () => {
-    const s = createSchedule(db, {
-      name: "test", cron: "* * * * *", prompt: "go",
-      use_worktree: false,
-    });
     const r = createRun(db, { schedule_id: s.id, prompt_used: "go" });
     const config = createTestConfig();
     const args = buildInvocation(s, r, config, makeEnv(), "go", db);

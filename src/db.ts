@@ -101,6 +101,13 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_runs_started ON runs(started_at);
     `,
   },
+  {
+    version: 2,
+    sql: `
+      ALTER TABLE runs ADD COLUMN tmux_session TEXT;
+      ALTER TABLE runs ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude';
+    `,
+  },
 ];
 
 export { MIGRATIONS };

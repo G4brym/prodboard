@@ -4,15 +4,15 @@ import { generateId } from "../ids.ts";
 
 export function createRun(
   db: Database,
-  opts: { schedule_id: string; prompt_used: string; pid?: number }
+  opts: { schedule_id: string; prompt_used: string; pid?: number; agent?: string }
 ): Run {
   const id = generateId();
   const now = new Date().toISOString().replace("T", " ").slice(0, 19);
 
   db.query(`
-    INSERT INTO runs (id, schedule_id, status, prompt_used, pid, started_at)
-    VALUES (?, ?, 'running', ?, ?, ?)
-  `).run(id, opts.schedule_id, opts.prompt_used, opts.pid ?? null, now);
+    INSERT INTO runs (id, schedule_id, status, prompt_used, pid, agent, started_at)
+    VALUES (?, ?, 'running', ?, ?, ?, ?)
+  `).run(id, opts.schedule_id, opts.prompt_used, opts.pid ?? null, opts.agent ?? "claude", now);
 
   return db.query("SELECT * FROM runs WHERE id = ?").get(id) as Run;
 }
@@ -31,6 +31,7 @@ export function updateRun(
     session_id: "session_id", worktree_path: "worktree_path",
     tokens_in: "tokens_in", tokens_out: "tokens_out", cost_usd: "cost_usd",
     tools_used: "tools_used", issues_touched: "issues_touched",
+    tmux_session: "tmux_session", agent: "agent",
     prompt_used: "prompt_used", pid: "pid",
   };
 

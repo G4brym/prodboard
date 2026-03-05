@@ -251,6 +251,7 @@ export async function scheduleRun(args: string[], dbOverride?: Database): Promis
     prompt_used: schedule.prompt,
   });
 
+  // CLI schedule run is a lightweight path without tmux/worktree support
   const em = new ExecutionManager(db, config);
   await em.executeRun(schedule, run);
 

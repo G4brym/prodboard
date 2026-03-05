@@ -5,6 +5,14 @@ export interface Config {
     idPrefix: string;
   };
   daemon: {
+    agent: "claude" | "opencode";
+    basePath: string | null;
+    useTmux: boolean;
+    opencode: {
+      serverUrl: string | null;
+      model: string | null;
+      agent: string | null;
+    };
     maxConcurrentRuns: number;
     maxTurns: number;
     hardMaxTurns: number;
@@ -16,6 +24,12 @@ export interface Config {
     defaultAllowedTools: string[];
     nonGitDefaultAllowedTools: string[];
     useWorktrees: "auto" | "always" | "never";
+  };
+  webui: {
+    enabled: boolean;
+    port: number;
+    hostname: string;
+    password: string | null;
   };
 }
 
@@ -72,11 +86,14 @@ export interface Run {
   cost_usd: number | null;
   tools_used: string | null;
   issues_touched: string | null;
+  tmux_session: string | null;
+  agent: string;
   schedule_name?: string;
 }
 
 export interface EnvironmentInfo {
   hasGit: boolean;
   hasClaude: boolean;
+  hasOpencode: boolean;
   worktreeSupported: boolean;
 }

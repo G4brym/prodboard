@@ -4,83 +4,18 @@ import * as path from "path";
 import type { Config, Schedule, Run } from "./types.ts";
 import { PRODBOARD_DIR } from "./config.ts";
 import { shouldFire } from "./cron.ts";
-import { detectEnvironment, buildInvocation } from "./invocation.ts";
+import { detectEnvironment } from "./invocation.ts";
 import { listSchedules } from "./queries/schedules.ts";
 import { createRun, updateRun, getRunningRuns, pruneOldRuns } from "./queries/runs.ts";
 import { resolveTemplate, buildTemplateContext } from "./templates.ts";
+import { createAgentDriver } from "./agents/index.ts";
+import type { AgentDriver, StreamEvent } from "./agents/types.ts";
+import { TmuxManager } from "./tmux.ts";
+import { WorktreeManager } from "./worktree.ts";
+import { OpenCodeServerManager } from "./opencode-server.ts";
 
-// Stream JSON event types
-export interface StreamEvent {
-  type: string;
-  session_id?: string;
-  tool?: string;
-  tool_input?: any;
-  result?: {
-    tokens_in?: number;
-    tokens_out?: number;
-    cost_usd?: number;
-  };
-  [key: string]: any;
-}
-
-export function parseStreamJson(line: string): StreamEvent | null {
-  try {
-    const parsed = JSON.parse(line.trim());
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-export function extractCostData(events: StreamEvent[]): {
-  tokens_in: number;
-  tokens_out: number;
-  cost_usd: number;
-  session_id: string | null;
-  tools_used: string[];
-  issues_touched: string[];
-} {
-  let tokens_in = 0;
-  let tokens_out = 0;
-  let cost_usd = 0;
-  let session_id: string | null = null;
-  const tools_used = new Set<string>();
-  const issues_touched = new Set<string>();
-
-  for (const event of events) {
-    if (event.type === "init" && event.session_id) {
-      session_id = event.session_id;
-    }
-    if (event.type === "tool_use" && event.tool) {
-      tools_used.add(event.tool);
-      // Track prodboard issue IDs from tool inputs
-      if (event.tool.startsWith("mcp__prodboard__") && event.tool_input?.id) {
-        issues_touched.add(event.tool_input.id);
-      }
-      if (event.tool.startsWith("mcp__prodboard__") && event.tool_input?.issue_id) {
-        issues_touched.add(event.tool_input.issue_id);
-      }
-    }
-    if (event.type === "result") {
-      if (event.result?.tokens_in) tokens_in = event.result.tokens_in;
-      if (event.result?.tokens_out) tokens_out = event.result.tokens_out;
-      if (event.result?.cost_usd) cost_usd = event.result.cost_usd;
-    }
-    // Also handle top-level fields some stream formats use
-    if (event.tokens_in) tokens_in = event.tokens_in;
-    if (event.tokens_out) tokens_out = event.tokens_out;
-    if (event.cost_usd) cost_usd = event.cost_usd;
-  }
-
-  return {
-    tokens_in,
-    tokens_out,
-    cost_usd,
-    session_id,
-    tools_used: [...tools_used],
-    issues_touched: [...issues_touched],
-  };
-}
+// Re-export for backward compatibility
+export type { StreamEvent };
 
 class RingBuffer {
   private buffer: string[] = [];
@@ -103,10 +38,17 @@ class RingBuffer {
 }
 
 export class ExecutionManager {
-  constructor(private db: Database, private config: Config) {}
+  constructor(
+    private db: Database,
+    private config: Config,
+    private driver: AgentDriver = createAgentDriver(config),
+    private tmuxManager?: TmuxManager,
+    private worktreeManager?: WorktreeManager,
+  ) {}
 
   async executeRun(schedule: Schedule, run: Run): Promise<void> {
-    const env = detectEnvironment(schedule.workdir, this.config);
+    const baseWorkdir = this.config.daemon.basePath ?? schedule.workdir;
+    const env = detectEnvironment(baseWorkdir, this.config);
 
     // Resolve prompt templates
     let resolvedPrompt = schedule.prompt;
@@ -119,94 +61,171 @@ export class ExecutionManager {
       }
     } catch {}
 
-    const args = buildInvocation(schedule, run, this.config, env, resolvedPrompt, this.db);
+    // Create worktree if applicable
+    let worktreePath: string | null = null;
+    let effectiveWorkdir = baseWorkdir;
 
-    // Update run with PID (will be set after spawn)
+    if (
+      this.worktreeManager &&
+      this.config.daemon.useWorktrees !== "never" &&
+      schedule.use_worktree !== 0 &&
+      this.worktreeManager.isGitRepo(baseWorkdir)
+    ) {
+      try {
+        worktreePath = await this.worktreeManager.create(run.id, baseWorkdir);
+        effectiveWorkdir = worktreePath;
+        updateRun(this.db, run.id, { worktree_path: worktreePath });
+      } catch (err: any) {
+        console.error(`[prodboard] Warning: Failed to create worktree: ${err.message}`);
+      }
+    }
+
+    const args = this.driver.buildCommand({
+      schedule,
+      run,
+      config: this.config,
+      env,
+      resolvedPrompt,
+      workdir: effectiveWorkdir,
+      db: this.db,
+    });
+
     const stdoutBuffer = new RingBuffer(500);
     const stderrBuffer = new RingBuffer(100);
     const events: StreamEvent[] = [];
 
-    let proc: any;
+    const useTmux = this.config.daemon.useTmux && this.tmuxManager?.isAvailable();
+    let tmuxSessionName: string | null = null;
+    let jsonlPath: string | null = null;
     let timeoutId: Timer | undefined;
+    let timedOut = false;
+
     try {
-      proc = Bun.spawn(args, {
-        cwd: schedule.workdir,
-        stdout: "pipe",
-        stderr: "pipe",
-        env: process.env,
-      });
+      if (useTmux && this.tmuxManager) {
+        // tmux path: spawn detached session, wait for completion, read events from file
+        tmuxSessionName = this.tmuxManager.sessionName(run.id);
+        jsonlPath = `/tmp/prodboard-${run.id}.jsonl`;
+        const wrappedArgs = this.tmuxManager.wrapCommand(tmuxSessionName, args, jsonlPath);
 
-      updateRun(this.db, run.id, { pid: proc.pid });
+        Bun.spawnSync(wrappedArgs, { cwd: effectiveWorkdir, env: process.env });
+        updateRun(this.db, run.id, { tmux_session: tmuxSessionName });
 
-      // Set up timeout
-      const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
-      timeoutId = setTimeout(() => {
+        // Set up timeout
+        const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          if (tmuxSessionName && this.tmuxManager) {
+            this.tmuxManager.killSession(tmuxSessionName);
+          }
+        }, timeoutMs);
+
+        const exitCode = await this.tmuxManager.waitForCompletion(tmuxSessionName, jsonlPath);
+
+        // Read JSONL file for events
         try {
-          proc.kill("SIGTERM");
-          setTimeout(() => {
-            try { proc.kill("SIGKILL"); } catch {}
-          }, 10000);
-        } catch {}
-      }, timeoutMs);
-
-      // Read stdout line by line
-      if (proc.stdout) {
-        const reader = proc.stdout.getReader();
-        let buffer = "";
-        try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += new TextDecoder().decode(value);
-            const lines = buffer.split("\n");
-            buffer = lines.pop() ?? "";
-            for (const line of lines) {
-              if (line.trim()) {
-                stdoutBuffer.push(line);
-                const event = parseStreamJson(line);
-                if (event) events.push(event);
-              }
+          const content = fs.readFileSync(jsonlPath, "utf-8");
+          for (const line of content.split("\n")) {
+            if (line.trim()) {
+              stdoutBuffer.push(line);
+              const event = this.driver.parseEvent(line);
+              if (event) events.push(event);
             }
           }
         } catch {}
-        reader.releaseLock();
-      }
 
-      // Read stderr
-      if (proc.stderr) {
-        const stderrText = await new Response(proc.stderr).text();
-        for (const line of stderrText.split("\n")) {
-          if (line.trim()) stderrBuffer.push(line);
-        }
-      }
+        const result = this.driver.extractResult(events);
+        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
 
-      const exitCode = await proc.exited;
-
-      const costData = extractCostData(events);
-      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
-
-      let status: string;
-      if (exitCode === 0) {
-        status = "success";
-      } else if (exitCode === null) {
-        status = "timeout";
+        updateRun(this.db, run.id, {
+          status: timedOut ? "timeout" : exitCode === 0 ? "success" : "failed",
+          finished_at: now,
+          exit_code: exitCode,
+          stdout_tail: stdoutBuffer.toString(),
+          session_id: result.session_id,
+          tokens_in: result.tokens_in,
+          tokens_out: result.tokens_out,
+          cost_usd: result.cost_usd,
+          tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
+          issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
+        });
       } else {
-        status = "failed";
-      }
+        // Direct spawn path (no tmux)
+        const proc = Bun.spawn(args, {
+          cwd: effectiveWorkdir,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: process.env,
+        });
 
-      updateRun(this.db, run.id, {
-        status,
-        finished_at: now,
-        exit_code: exitCode,
-        stdout_tail: stdoutBuffer.toString(),
-        stderr_tail: stderrBuffer.toString(),
-        session_id: costData.session_id,
-        tokens_in: costData.tokens_in,
-        tokens_out: costData.tokens_out,
-        cost_usd: costData.cost_usd,
-        tools_used: costData.tools_used.length > 0 ? JSON.stringify(costData.tools_used) : null,
-        issues_touched: costData.issues_touched.length > 0 ? JSON.stringify(costData.issues_touched) : null,
-      });
+        updateRun(this.db, run.id, { pid: proc.pid });
+
+        const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
+        timeoutId = setTimeout(() => {
+          try {
+            proc.kill("SIGTERM");
+            setTimeout(() => {
+              try { proc.kill("SIGKILL"); } catch {}
+            }, 10000);
+          } catch {}
+        }, timeoutMs);
+
+        if (proc.stdout) {
+          const reader = proc.stdout.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          try {
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split("\n");
+              buffer = lines.pop() ?? "";
+              for (const line of lines) {
+                if (line.trim()) {
+                  stdoutBuffer.push(line);
+                  const event = this.driver.parseEvent(line);
+                  if (event) events.push(event);
+                }
+              }
+            }
+          } catch {}
+          reader.releaseLock();
+        }
+
+        if (proc.stderr) {
+          const stderrText = await new Response(proc.stderr).text();
+          for (const line of stderrText.split("\n")) {
+            if (line.trim()) stderrBuffer.push(line);
+          }
+        }
+
+        const exitCode = await proc.exited;
+        const result = this.driver.extractResult(events);
+        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+        let status: string;
+        if (exitCode === 0) {
+          status = "success";
+        } else if (exitCode === null) {
+          status = "timeout";
+        } else {
+          status = "failed";
+        }
+
+        updateRun(this.db, run.id, {
+          status,
+          finished_at: now,
+          exit_code: exitCode,
+          stdout_tail: stdoutBuffer.toString(),
+          stderr_tail: stderrBuffer.toString(),
+          session_id: result.session_id,
+          tokens_in: result.tokens_in,
+          tokens_out: result.tokens_out,
+          cost_usd: result.cost_usd,
+          tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
+          issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
+        });
+      }
     } catch (err: any) {
       const now = new Date().toISOString().replace("T", " ").slice(0, 19);
       updateRun(this.db, run.id, {
@@ -216,6 +235,17 @@ export class ExecutionManager {
       });
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
+
+      // Clean up worktree
+      if (worktreePath && this.worktreeManager) {
+        try { await this.worktreeManager.remove(run.id); } catch {}
+      }
+
+      // Clean up tmux JSONL temp file
+      if (jsonlPath) {
+        try { fs.unlinkSync(jsonlPath); } catch {}
+        try { fs.unlinkSync(`${jsonlPath}.exit`); } catch {}
+      }
     }
   }
 }
@@ -233,7 +263,6 @@ export class CronLoop {
 
   start(): void {
     this.interval = setInterval(() => this.tick(), 30_000);
-    // Also tick immediately
     this.tick();
   }
 
@@ -257,23 +286,20 @@ export class CronLoop {
         try {
           if (!shouldFire(schedule.cron, now)) continue;
 
-          // Prevent double-fire within same minute
           const lastFiredMinute = this.lastFired.get(schedule.id);
           if (lastFiredMinute === minuteTs) continue;
 
-          // Check concurrent limit
           const runningRuns = getRunningRuns(this.db);
           if (runningRuns.length >= this.config.daemon.maxConcurrentRuns) continue;
 
           const run = createRun(this.db, {
             schedule_id: schedule.id,
             prompt_used: schedule.prompt,
+            agent: this.config.daemon.agent,
           });
 
-          // Mark fired only after successful run creation
           this.lastFired.set(schedule.id, minuteTs);
 
-          // Execute async - don't block the loop
           this.executionManager.executeRun(schedule, run).catch(() => {});
         } catch (err) {
           console.error(`[prodboard] Error evaluating schedule ${schedule.id}:`, err instanceof Error ? err.message : String(err));
@@ -293,7 +319,7 @@ export class CleanupWorker {
   constructor(private db: Database, private config: Config) {}
 
   start(): void {
-    this.interval = setInterval(() => this.cleanup(), 3600_000); // 1 hour
+    this.interval = setInterval(() => this.cleanup(), 3600_000);
   }
 
   stop(): void {
@@ -317,23 +343,63 @@ export class Daemon {
   private cronLoop: CronLoop;
   private cleanupWorker: CleanupWorker;
   private executionManager: ExecutionManager;
+  private tmuxManager: TmuxManager;
+  private worktreeManager?: WorktreeManager;
+  private openCodeServer?: OpenCodeServerManager;
+  private webServer?: any;
 
   constructor(private db: Database, private config: Config) {
-    this.executionManager = new ExecutionManager(db, config);
+    const driver = createAgentDriver(config);
+    this.tmuxManager = new TmuxManager();
+    if (config.daemon.basePath) {
+      this.worktreeManager = new WorktreeManager(config.daemon.basePath);
+    }
+    this.executionManager = new ExecutionManager(db, config, driver, this.tmuxManager, this.worktreeManager);
     this.cronLoop = new CronLoop(db, config, this.executionManager);
     this.cleanupWorker = new CleanupWorker(db, config);
   }
 
   async start(): Promise<void> {
     this.recoverCrashedRuns();
+
+    // Check tmux availability
+    if (this.config.daemon.useTmux) {
+      if (this.tmuxManager.isAvailable()) {
+        console.error("[prodboard] tmux available — sessions will be attachable");
+      } else {
+        console.error("[prodboard] Warning: useTmux is true but tmux is not installed");
+      }
+    }
+
+    // Start OpenCode server if needed
+    if (this.config.daemon.agent === "opencode") {
+      this.openCodeServer = new OpenCodeServerManager(this.config);
+      try {
+        const url = await this.openCodeServer.ensureRunning();
+        console.error(`[prodboard] OpenCode server running at ${url}`);
+      } catch (err: any) {
+        console.error(`[prodboard] Warning: Could not start OpenCode server: ${err.message}`);
+      }
+    }
+
     this.writePidFile();
     this.cronLoop.start();
     this.cleanupWorker.start();
 
+    // Start web UI if enabled
+    if (this.config.webui.enabled) {
+      try {
+        const { startWebUI } = await import("./webui/index.ts");
+        this.webServer = await startWebUI(this.db, this.config);
+      } catch (err: any) {
+        console.error(`[prodboard] Warning: Could not start web UI: ${err.message}`);
+      }
+    }
+
     process.on("SIGTERM", () => this.stop());
     process.on("SIGINT", () => this.stop());
 
-    console.error(`[prodboard] Daemon started (PID ${process.pid})`);
+    console.error(`[prodboard] Daemon started (PID ${process.pid}, agent: ${this.config.daemon.agent})`);
   }
 
   async stop(): Promise<void> {
@@ -341,11 +407,16 @@ export class Daemon {
     this.cronLoop.stop();
     this.cleanupWorker.stop();
 
-    // Wait for running processes
+    // Kill running tmux sessions
     const running = getRunningRuns(this.db);
+    for (const run of running) {
+      if (run.tmux_session) {
+        this.tmuxManager.killSession(run.tmux_session);
+      }
+    }
+
     if (running.length > 0) {
       console.error(`[prodboard] Waiting for ${running.length} running process(es)...`);
-      // Give them 30 seconds
       const deadline = Date.now() + 30_000;
       while (Date.now() < deadline) {
         const still = getRunningRuns(this.db);
@@ -353,14 +424,12 @@ export class Daemon {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      // Kill remaining processes first, then mark cancelled
       const stillRunning = getRunningRuns(this.db);
       for (const run of stillRunning) {
         if (run.pid) {
           try { process.kill(run.pid, "SIGTERM"); } catch {}
         }
       }
-      // Brief wait for processes to exit after SIGTERM
       await new Promise((resolve) => setTimeout(resolve, 2000));
       for (const run of stillRunning) {
         if (run.pid) {
@@ -369,6 +438,16 @@ export class Daemon {
         const now = new Date().toISOString().replace("T", " ").slice(0, 19);
         updateRun(this.db, run.id, { status: "cancelled", finished_at: now });
       }
+    }
+
+    // Stop web server
+    if (this.webServer) {
+      try { this.webServer.stop(); } catch {}
+    }
+
+    // Stop OpenCode server
+    if (this.openCodeServer) {
+      await this.openCodeServer.stop();
     }
 
     this.removePidFile();
@@ -396,6 +475,12 @@ export class Daemon {
           process.kill(run.pid, 0);
           alive = true;
         } catch {}
+      } else if (run.tmux_session) {
+        const result = Bun.spawnSync(["tmux", "has-session", "-t", run.tmux_session], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        alive = result.exitCode === 0;
       }
 
       if (!alive) {
