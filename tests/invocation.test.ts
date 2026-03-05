@@ -12,6 +12,7 @@ function makeEnv(overrides?: Partial<EnvironmentInfo>): EnvironmentInfo {
   return {
     hasGit: true,
     hasClaude: true,
+    hasOpencode: false,
     worktreeSupported: true,
     ...overrides,
   };

@@ -65,13 +65,14 @@ describe("Database Module", () => {
     db.close();
   });
 
-  test("_migrations records applied version", () => {
+  test("_migrations records applied versions", () => {
     const db = getDb(":memory:");
     runMigrations(db);
 
-    const versions = db.query("SELECT version FROM _migrations").all() as { version: number }[];
-    expect(versions.length).toBe(1);
+    const versions = db.query("SELECT version FROM _migrations ORDER BY version").all() as { version: number }[];
+    expect(versions.length).toBe(MIGRATIONS.length);
     expect(versions[0].version).toBe(1);
+    expect(versions[versions.length - 1].version).toBe(MIGRATIONS.length);
     db.close();
   });
 
@@ -81,7 +82,19 @@ describe("Database Module", () => {
     runMigrations(db); // should not throw
 
     const versions = db.query("SELECT version FROM _migrations").all() as { version: number }[];
-    expect(versions.length).toBe(1);
+    expect(versions.length).toBe(MIGRATIONS.length);
+    db.close();
+  });
+
+  test("migration v2 adds tmux_session and agent columns to runs", () => {
+    const db = getDb(":memory:");
+    runMigrations(db);
+
+    const columns = db.query("PRAGMA table_info(runs)").all() as { name: string }[];
+    const colNames = columns.map((c) => c.name);
+
+    expect(colNames).toContain("tmux_session");
+    expect(colNames).toContain("agent");
     db.close();
   });
 

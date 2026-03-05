@@ -18,6 +18,14 @@ export function createTestConfig(overrides?: Partial<Config>): Config {
       idPrefix: "",
     },
     daemon: {
+      agent: "claude",
+      basePath: null,
+      useTmux: true,
+      opencode: {
+        serverUrl: null,
+        model: null,
+        agent: null,
+      },
       maxConcurrentRuns: 2,
       maxTurns: 50,
       hardMaxTurns: 200,
@@ -49,6 +57,12 @@ export function createTestConfig(overrides?: Partial<Config>): Config {
         "mcp__prodboard__complete_issue",
       ],
       useWorktrees: "auto",
+    },
+    webui: {
+      enabled: false,
+      port: 3838,
+      hostname: "127.0.0.1",
+      password: null,
     },
   };
 

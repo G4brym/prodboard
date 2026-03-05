@@ -24,9 +24,18 @@ export function detectEnvironment(workdir: string, config: Config): EnvironmentI
     hasClaude = result.exitCode === 0;
   } catch {}
 
+  let hasOpencode = false;
+  try {
+    const result = Bun.spawnSync(["opencode", "--version"], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    hasOpencode = result.exitCode === 0;
+  } catch {}
+
   const worktreeSupported = hasGit && config.daemon.useWorktrees !== "never";
 
-  return { hasGit, hasClaude, worktreeSupported };
+  return { hasGit, hasClaude, hasOpencode, worktreeSupported };
 }
 
 export function buildInvocation(

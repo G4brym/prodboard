@@ -14,10 +14,26 @@
   },
 
   "daemon": {
+    // Agent to use: "claude" or "opencode"
+    // "agent": "claude",
+
+    // Base path for worktrees and agent runs (null = use schedule workdir)
+    // "basePath": null,
+
+    // Wrap agent runs in tmux sessions (allows attaching to running agents)
+    // "useTmux": true,
+
+    // OpenCode-specific settings (only used when agent is "opencode")
+    // "opencode": {
+    //   "serverUrl": null,    // auto-detect or override (e.g., "http://localhost:4096")
+    //   "model": null,        // e.g., "anthropic/claude-sonnet-4-20250514"
+    //   "agent": null          // opencode agent name
+    // },
+
     // Maximum concurrent scheduled runs
     // "maxConcurrentRuns": 2,
 
-    // Default max turns for Claude invocations
+    // Default max turns for agent invocations
     // "maxTurns": 50,
 
     // Absolute maximum turns (cannot be overridden by schedules)
@@ -34,5 +50,19 @@
 
     // Worktree usage: "auto", "always", "never"
     // "useWorktrees": "auto"
+  },
+
+  "webui": {
+    // Enable the web UI (served by the daemon)
+    // "enabled": false,
+
+    // Port for the web UI
+    // "port": 3838,
+
+    // Hostname to bind to
+    // "hostname": "127.0.0.1",
+
+    // Password for web UI access (null = no auth)
+    // "password": null
   }
 }
