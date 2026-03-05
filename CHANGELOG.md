@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.2.0
+
+### Minor Changes
+
+- [#6](https://github.com/G4brym/prodboard/pull/6) [`030c913`](https://github.com/G4brym/prodboard/commit/030c9136dc344e93616e0ef6014bab25d45b50d5) Thanks [@G4brym](https://github.com/G4brym)! - Add OpenCode support, prodboard-managed worktrees, tmux session wrapping, configurable base path, and web UI
+
 ## 0.1.3
 
 ### Patch Changes
