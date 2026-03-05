@@ -1,9 +1,21 @@
 import { Hono } from "hono";
+import crypto from "crypto";
 import { Layout } from "../components/layout.tsx";
 import type { Database } from "bun:sqlite";
 import type { Config } from "../../types.ts";
 
-export function authRoutes(_db: Database, _config: Config) {
+function timingSafeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function generateAuthToken(password: string, salt: string): string {
+  return crypto.createHmac("sha256", salt).update(password).digest("hex");
+}
+
+export function authRoutes(_db: Database, _config: Config, authSalt: string) {
   const app = new Hono();
 
   app.get("/login", (c) => {
@@ -28,12 +40,17 @@ export function authRoutes(_db: Database, _config: Config) {
   app.post("/login", async (c) => {
     const body = await c.req.parseBody();
     const password = body.password as string;
-    if (password === _config.webui.password) {
-      const token = Buffer.from(password).toString("base64");
+    if (timingSafeCompare(password, _config.webui.password!)) {
+      const token = generateAuthToken(password, authSalt);
       c.header("Set-Cookie", `prodboard_auth=${token}; Path=/; HttpOnly; SameSite=Strict`);
       return c.redirect("/");
     }
     return c.redirect("/login?error=1");
+  });
+
+  app.post("/logout", (c) => {
+    c.header("Set-Cookie", `prodboard_auth=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+    return c.redirect("/login");
   });
 
   return app;

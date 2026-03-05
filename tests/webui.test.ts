@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
+import crypto from "crypto";
 import { createTestDb, createTestConfig } from "./helpers.ts";
 import { createApp } from "../src/webui/index.ts";
 import { createIssue } from "../src/queries/issues.ts";
@@ -8,12 +9,14 @@ import { createSchedule } from "../src/queries/schedules.ts";
 import { createRun, updateRun } from "../src/queries/runs.ts";
 import type { Config } from "../src/types.ts";
 
+const TEST_AUTH_SALT = "test-salt-for-webui-tests";
+
 let db: Database;
 let config: Config;
 
 function app(configOverrides?: Partial<Config>) {
   const cfg = configOverrides ? { ...config, ...configOverrides } : config;
-  return createApp(db, cfg);
+  return createApp(db, cfg, TEST_AUTH_SALT);
 }
 
 async function get(path: string, configOverrides?: Partial<Config>) {
@@ -24,9 +27,16 @@ async function post(path: string, body: Record<string, string>, configOverrides?
   const formData = new URLSearchParams(body);
   return app(configOverrides).request(path, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Origin": "http://localhost",
+    },
     body: formData.toString(),
   });
+}
+
+function generateTestToken(password: string): string {
+  return crypto.createHmac("sha256", TEST_AUTH_SALT).update(password).digest("hex");
 }
 
 beforeEach(() => {
@@ -106,6 +116,24 @@ describe("Web UI - Issues", () => {
   });
 });
 
+describe("Web UI - Issues Error Paths", () => {
+  test("GET /issues/:id returns 404 for invalid ID", async () => {
+    const res = await get("/issues/nonexistent-id");
+    expect(res.status).toBe(404);
+  });
+
+  test("POST /issues with empty title returns 400", async () => {
+    const res = await post("/issues", { title: "  ", description: "", status: "todo" });
+    expect(res.status).toBe(400);
+  });
+
+  test("POST /issues/:id/move with invalid status returns 400", async () => {
+    const issue = createIssue(db, { title: "Test" });
+    const res = await post(`/issues/${issue.id}/move`, { status: "INVALID_STATUS" });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("Web UI - Schedules", () => {
   test("GET /schedules lists all schedules", async () => {
     createSchedule(db, { name: "Test Schedule", cron: "* * * * *", prompt: "go" });
@@ -151,6 +179,33 @@ describe("Web UI - Schedules", () => {
 
     const { getSchedule } = await import("../src/queries/schedules.ts");
     expect(getSchedule(db, s.id)).toBeNull();
+  });
+});
+
+describe("Web UI - Schedules Error Paths", () => {
+  test("POST /schedules with empty name returns 400", async () => {
+    const res = await post("/schedules", { name: "", cron: "* * * * *", prompt: "go", workdir: "." });
+    expect(res.status).toBe(400);
+  });
+
+  test("POST /schedules with empty cron returns 400", async () => {
+    const res = await post("/schedules", { name: "test", cron: "", prompt: "go", workdir: "." });
+    expect(res.status).toBe(400);
+  });
+
+  test("POST /schedules with invalid cron returns 400", async () => {
+    const res = await post("/schedules", { name: "test", cron: "bad cron", prompt: "go", workdir: "." });
+    expect(res.status).toBe(400);
+  });
+
+  test("POST /schedules with empty prompt returns 400", async () => {
+    const res = await post("/schedules", { name: "test", cron: "* * * * *", prompt: "", workdir: "." });
+    expect(res.status).toBe(400);
+  });
+
+  test("GET /schedules/:id/toggle with invalid ID returns 404", async () => {
+    const res = await post("/schedules/nonexistent-id/toggle", {});
+    expect(res.status).toBe(404);
   });
 });
 
@@ -208,11 +263,32 @@ describe("Web UI - Auth", () => {
 
   test("authenticated requests pass through", async () => {
     const cfg = { webui: { enabled: true, port: 3838, hostname: "127.0.0.1", password: "secret" } } as Partial<Config>;
-    const token = Buffer.from("secret").toString("base64");
-    const a = createApp(db, { ...config, ...cfg } as Config);
+    const token = generateTestToken("secret");
+    const a = createApp(db, { ...config, ...cfg } as Config, TEST_AUTH_SALT);
     const res = await a.request("/issues", {
       headers: { Cookie: `prodboard_auth=${token}` },
     });
     expect(res.status).toBe(200);
+  });
+
+  test("wrong password login redirects to error", async () => {
+    const cfg: Partial<Config> = { webui: { enabled: true, port: 3838, hostname: "127.0.0.1", password: "secret" } };
+    const res = await post("/login", { password: "wrong" }, cfg);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login?error=1");
+  });
+
+  test("/api/status requires auth when password is set", async () => {
+    const cfg: Partial<Config> = { webui: { enabled: true, port: 3838, hostname: "127.0.0.1", password: "secret" } };
+    const res = await get("/api/status", cfg);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login");
+  });
+
+  test("empty string password enables auth", async () => {
+    const cfg: Partial<Config> = { webui: { enabled: true, port: 3838, hostname: "127.0.0.1", password: "" } };
+    const res = await get("/issues", cfg);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login");
   });
 });

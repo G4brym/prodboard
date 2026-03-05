@@ -245,6 +245,10 @@ Config file: `~/.prodboard/config.jsonc`
     "runTimeoutSeconds": 1800,
     "runRetentionDays": 30,
     "logLevel": "info",
+    "logMaxSizeMb": 10,           // max size per log file in MB
+    "logMaxFiles": 5,             // max number of rotated log files
+    "defaultAllowedTools": [...], // tools allowed for git-repo runs
+    "nonGitDefaultAllowedTools": [...], // tools allowed for non-git runs
     "useWorktrees": "auto"        // "auto", "always", or "never"
   },
   "webui": {
@@ -299,9 +303,20 @@ If tmux is not installed, runs fall back to direct process spawning with piped s
 
 prodboard creates isolated git worktrees for each scheduled run, so concurrent runs in the same repository don't conflict.
 
+**Requirement:** You must set `daemon.basePath` in your config for worktrees to work. This tells prodboard where to create the `.worktrees/` directory. If `basePath` is `null` (the default), worktrees are disabled regardless of the `useWorktrees` setting.
+
+```jsonc
+{
+  "daemon": {
+    "basePath": "/home/you/my-project",  // required for worktrees
+    "useWorktrees": "auto"
+  }
+}
+```
+
 | `useWorktrees` | Behavior |
 |---------------|----------|
-| `"auto"` (default) | Create worktrees when the working directory is a git repo and the schedule allows it |
+| `"auto"` (default) | Create worktrees when `basePath` is set, the directory is a git repo, and the schedule allows it |
 | `"always"` | Always create worktrees (fails if directory is not a git repo) |
 | `"never"` | Never create worktrees |
 

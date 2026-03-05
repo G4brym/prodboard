@@ -50,10 +50,12 @@ export function issueRoutes(db: Database, config: Config) {
 
   app.post("/", async (c) => {
     const body = await c.req.parseBody();
+    const title = (body.title as string || "").trim();
+    if (!title) return c.text("Title is required", 400);
     const status = (body.status as string) || config.general.defaultStatus;
     validateStatus(status, config);
     createIssue(db, {
-      title: body.title as string,
+      title,
       description: (body.description as string) || "",
       status,
     });

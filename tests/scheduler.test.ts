@@ -1,7 +1,8 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createTestDb, createTestConfig } from "./helpers.ts";
-import { parseStreamJson, extractCostData, CronLoop, ExecutionManager } from "../src/scheduler.ts";
+import { CronLoop, ExecutionManager } from "../src/scheduler.ts";
+import { ClaudeDriver } from "../src/agents/claude.ts";
 import { createSchedule, disableSchedule } from "../src/queries/schedules.ts";
 import { createRun, updateRun, getRunningRuns } from "../src/queries/runs.ts";
 
@@ -11,31 +12,31 @@ beforeEach(() => {
   db = createTestDb();
 });
 
-describe("Stream JSON Parser", () => {
+describe("ClaudeDriver parseEvent / extractResult", () => {
+  const driver = new ClaudeDriver();
+
   test("parses valid JSON", () => {
-    const result = parseStreamJson('{"type":"init","session_id":"abc"}');
+    const result = driver.parseEvent('{"type":"init","session_id":"abc"}');
     expect(result?.type).toBe("init");
     expect(result?.session_id).toBe("abc");
   });
 
   test("returns null for invalid JSON", () => {
-    expect(parseStreamJson("not json")).toBeNull();
+    expect(driver.parseEvent("not json")).toBeNull();
   });
 
   test("handles all message types", () => {
-    expect(parseStreamJson('{"type":"init"}')?.type).toBe("init");
-    expect(parseStreamJson('{"type":"tool_use","tool":"Read"}')?.type).toBe("tool_use");
-    expect(parseStreamJson('{"type":"result"}')?.type).toBe("result");
+    expect(driver.parseEvent('{"type":"init"}')?.type).toBe("init");
+    expect(driver.parseEvent('{"type":"tool_use","tool":"Read"}')?.type).toBe("tool_use");
+    expect(driver.parseEvent('{"type":"result"}')?.type).toBe("result");
   });
-});
 
-describe("Cost Data Extraction", () => {
   test("extracts session_id from init", () => {
     const events = [
       { type: "init", session_id: "sess-123" },
       { type: "result", result: { tokens_in: 100, tokens_out: 50, cost_usd: 0.01 } },
     ];
-    const data = extractCostData(events);
+    const data = driver.extractResult(events);
     expect(data.session_id).toBe("sess-123");
     expect(data.tokens_in).toBe(100);
     expect(data.tokens_out).toBe(50);
@@ -46,9 +47,9 @@ describe("Cost Data Extraction", () => {
     const events = [
       { type: "tool_use", tool: "Read" },
       { type: "tool_use", tool: "Write" },
-      { type: "tool_use", tool: "Read" }, // duplicate
+      { type: "tool_use", tool: "Read" },
     ];
-    const data = extractCostData(events);
+    const data = driver.extractResult(events);
     expect(data.tools_used).toEqual(["Read", "Write"]);
   });
 
@@ -57,7 +58,7 @@ describe("Cost Data Extraction", () => {
       { type: "tool_use", tool: "mcp__prodboard__get_issue", tool_input: { id: "abc123" } },
       { type: "tool_use", tool: "mcp__prodboard__add_comment", tool_input: { issue_id: "def456" } },
     ];
-    const data = extractCostData(events);
+    const data = driver.extractResult(events);
     expect(data.issues_touched).toContain("abc123");
     expect(data.issues_touched).toContain("def456");
   });

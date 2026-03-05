@@ -1,4 +1,5 @@
 import type { AgentDriver, AgentRunContext, AgentResult, StreamEvent } from "./types.ts";
+import { getLastSessionId } from "../queries/runs.ts";
 
 export class OpenCodeDriver implements AgentDriver {
   readonly name = "opencode";
@@ -25,7 +26,6 @@ export class OpenCodeDriver implements AgentDriver {
     }
 
     if (schedule.persist_session && db) {
-      const { getLastSessionId } = require("../queries/runs.ts");
       const lastSessionId = getLastSessionId(db, schedule.id);
       if (lastSessionId) {
         args.push("--session", lastSessionId, "--continue");

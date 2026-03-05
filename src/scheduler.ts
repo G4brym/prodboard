@@ -17,62 +17,6 @@ import { OpenCodeServerManager } from "./opencode-server.ts";
 // Re-export for backward compatibility
 export type { StreamEvent };
 
-export function parseStreamJson(line: string): StreamEvent | null {
-  try {
-    return JSON.parse(line.trim());
-  } catch {
-    return null;
-  }
-}
-
-export function extractCostData(events: StreamEvent[]): {
-  tokens_in: number;
-  tokens_out: number;
-  cost_usd: number;
-  session_id: string | null;
-  tools_used: string[];
-  issues_touched: string[];
-} {
-  let tokens_in = 0;
-  let tokens_out = 0;
-  let cost_usd = 0;
-  let session_id: string | null = null;
-  const tools_used = new Set<string>();
-  const issues_touched = new Set<string>();
-
-  for (const event of events) {
-    if (event.type === "init" && event.session_id) {
-      session_id = event.session_id;
-    }
-    if (event.type === "tool_use" && event.tool) {
-      tools_used.add(event.tool);
-      if (event.tool.startsWith("mcp__prodboard__") && event.tool_input?.id) {
-        issues_touched.add(event.tool_input.id);
-      }
-      if (event.tool.startsWith("mcp__prodboard__") && event.tool_input?.issue_id) {
-        issues_touched.add(event.tool_input.issue_id);
-      }
-    }
-    if (event.type === "result") {
-      if (event.result?.tokens_in) tokens_in = event.result.tokens_in;
-      if (event.result?.tokens_out) tokens_out = event.result.tokens_out;
-      if (event.result?.cost_usd) cost_usd = event.result.cost_usd;
-    }
-    if (event.tokens_in) tokens_in = event.tokens_in;
-    if (event.tokens_out) tokens_out = event.tokens_out;
-    if (event.cost_usd) cost_usd = event.cost_usd;
-  }
-
-  return {
-    tokens_in,
-    tokens_out,
-    cost_usd,
-    session_id,
-    tools_used: [...tools_used],
-    issues_touched: [...issues_touched],
-  };
-}
-
 class RingBuffer {
   private buffer: string[] = [];
   constructor(private maxSize: number) {}
@@ -154,6 +98,7 @@ export class ExecutionManager {
     let tmuxSessionName: string | null = null;
     let jsonlPath: string | null = null;
     let timeoutId: Timer | undefined;
+    let timedOut = false;
 
     try {
       if (useTmux && this.tmuxManager) {
@@ -168,6 +113,7 @@ export class ExecutionManager {
         // Set up timeout
         const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
         timeoutId = setTimeout(() => {
+          timedOut = true;
           if (tmuxSessionName && this.tmuxManager) {
             this.tmuxManager.killSession(tmuxSessionName);
           }
@@ -191,7 +137,7 @@ export class ExecutionManager {
         const now = new Date().toISOString().replace("T", " ").slice(0, 19);
 
         updateRun(this.db, run.id, {
-          status: exitCode === 0 ? "success" : "failed",
+          status: timedOut ? "timeout" : exitCode === 0 ? "success" : "failed",
           finished_at: now,
           exit_code: exitCode,
           stdout_tail: stdoutBuffer.toString(),
@@ -225,12 +171,13 @@ export class ExecutionManager {
 
         if (proc.stdout) {
           const reader = proc.stdout.getReader();
+          const decoder = new TextDecoder();
           let buffer = "";
           try {
             while (true) {
               const { value, done } = await reader.read();
               if (done) break;
-              buffer += new TextDecoder().decode(value);
+              buffer += decoder.decode(value, { stream: true });
               const lines = buffer.split("\n");
               buffer = lines.pop() ?? "";
               for (const line of lines) {
@@ -528,6 +475,12 @@ export class Daemon {
           process.kill(run.pid, 0);
           alive = true;
         } catch {}
+      } else if (run.tmux_session) {
+        const result = Bun.spawnSync(["tmux", "has-session", "-t", run.tmux_session], {
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        alive = result.exitCode === 0;
       }
 
       if (!alive) {
