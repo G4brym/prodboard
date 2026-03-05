@@ -89,11 +89,6 @@ export function buildInvocation(
     args.push("--allowedTools", tool);
   }
 
-  // Worktree
-  if (env.worktreeSupported && schedule.use_worktree !== 0) {
-    args.push("--worktree");
-  }
-
   // Session resume
   if (schedule.persist_session && db) {
     const lastSessionId = getLastSessionId(db, schedule.id);

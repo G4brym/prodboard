@@ -98,11 +98,13 @@ export class ExecutionManager {
     private db: Database,
     private config: Config,
     private driver: AgentDriver = createAgentDriver(config),
+    private tmuxManager?: TmuxManager,
+    private worktreeManager?: WorktreeManager,
   ) {}
 
   async executeRun(schedule: Schedule, run: Run): Promise<void> {
-    const workdir = this.config.daemon.basePath ?? schedule.workdir;
-    const env = detectEnvironment(workdir, this.config);
+    const baseWorkdir = this.config.daemon.basePath ?? schedule.workdir;
+    const env = detectEnvironment(baseWorkdir, this.config);
 
     // Resolve prompt templates
     let resolvedPrompt = schedule.prompt;
@@ -115,13 +117,32 @@ export class ExecutionManager {
       }
     } catch {}
 
+    // Create worktree if applicable
+    let worktreePath: string | null = null;
+    let effectiveWorkdir = baseWorkdir;
+
+    if (
+      this.worktreeManager &&
+      this.config.daemon.useWorktrees !== "never" &&
+      schedule.use_worktree !== 0 &&
+      this.worktreeManager.isGitRepo(baseWorkdir)
+    ) {
+      try {
+        worktreePath = await this.worktreeManager.create(run.id, baseWorkdir);
+        effectiveWorkdir = worktreePath;
+        updateRun(this.db, run.id, { worktree_path: worktreePath });
+      } catch (err: any) {
+        console.error(`[prodboard] Warning: Failed to create worktree: ${err.message}`);
+      }
+    }
+
     const args = this.driver.buildCommand({
       schedule,
       run,
       config: this.config,
       env,
       resolvedPrompt,
-      workdir,
+      workdir: effectiveWorkdir,
       db: this.db,
     });
 
@@ -129,87 +150,135 @@ export class ExecutionManager {
     const stderrBuffer = new RingBuffer(100);
     const events: StreamEvent[] = [];
 
-    let proc: any;
+    const useTmux = this.config.daemon.useTmux && this.tmuxManager?.isAvailable();
+    let tmuxSessionName: string | null = null;
+    let jsonlPath: string | null = null;
     let timeoutId: Timer | undefined;
+
     try {
-      proc = Bun.spawn(args, {
-        cwd: workdir,
-        stdout: "pipe",
-        stderr: "pipe",
-        env: process.env,
-      });
+      if (useTmux && this.tmuxManager) {
+        // tmux path: spawn detached session, wait for completion, read events from file
+        tmuxSessionName = this.tmuxManager.sessionName(run.id);
+        jsonlPath = `/tmp/prodboard-${run.id}.jsonl`;
+        const wrappedArgs = this.tmuxManager.wrapCommand(tmuxSessionName, args, jsonlPath);
 
-      updateRun(this.db, run.id, { pid: proc.pid });
+        Bun.spawnSync(wrappedArgs, { cwd: effectiveWorkdir, env: process.env });
+        updateRun(this.db, run.id, { tmux_session: tmuxSessionName });
 
-      // Set up timeout
-      const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
-      timeoutId = setTimeout(() => {
+        // Set up timeout
+        const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
+        timeoutId = setTimeout(() => {
+          if (tmuxSessionName && this.tmuxManager) {
+            this.tmuxManager.killSession(tmuxSessionName);
+          }
+        }, timeoutMs);
+
+        const exitCode = await this.tmuxManager.waitForCompletion(tmuxSessionName, jsonlPath);
+
+        // Read JSONL file for events
         try {
-          proc.kill("SIGTERM");
-          setTimeout(() => {
-            try { proc.kill("SIGKILL"); } catch {}
-          }, 10000);
-        } catch {}
-      }, timeoutMs);
-
-      // Read stdout line by line
-      if (proc.stdout) {
-        const reader = proc.stdout.getReader();
-        let buffer = "";
-        try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += new TextDecoder().decode(value);
-            const lines = buffer.split("\n");
-            buffer = lines.pop() ?? "";
-            for (const line of lines) {
-              if (line.trim()) {
-                stdoutBuffer.push(line);
-                const event = this.driver.parseEvent(line);
-                if (event) events.push(event);
-              }
+          const content = fs.readFileSync(jsonlPath, "utf-8");
+          for (const line of content.split("\n")) {
+            if (line.trim()) {
+              stdoutBuffer.push(line);
+              const event = this.driver.parseEvent(line);
+              if (event) events.push(event);
             }
           }
         } catch {}
-        reader.releaseLock();
-      }
 
-      // Read stderr
-      if (proc.stderr) {
-        const stderrText = await new Response(proc.stderr).text();
-        for (const line of stderrText.split("\n")) {
-          if (line.trim()) stderrBuffer.push(line);
-        }
-      }
+        const result = this.driver.extractResult(events);
+        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
 
-      const exitCode = await proc.exited;
-
-      const result = this.driver.extractResult(events);
-      const now = new Date().toISOString().replace("T", " ").slice(0, 19);
-
-      let status: string;
-      if (exitCode === 0) {
-        status = "success";
-      } else if (exitCode === null) {
-        status = "timeout";
+        updateRun(this.db, run.id, {
+          status: exitCode === 0 ? "success" : "failed",
+          finished_at: now,
+          exit_code: exitCode,
+          stdout_tail: stdoutBuffer.toString(),
+          session_id: result.session_id,
+          tokens_in: result.tokens_in,
+          tokens_out: result.tokens_out,
+          cost_usd: result.cost_usd,
+          tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
+          issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
+        });
       } else {
-        status = "failed";
-      }
+        // Direct spawn path (no tmux)
+        const proc = Bun.spawn(args, {
+          cwd: effectiveWorkdir,
+          stdout: "pipe",
+          stderr: "pipe",
+          env: process.env,
+        });
 
-      updateRun(this.db, run.id, {
-        status,
-        finished_at: now,
-        exit_code: exitCode,
-        stdout_tail: stdoutBuffer.toString(),
-        stderr_tail: stderrBuffer.toString(),
-        session_id: result.session_id,
-        tokens_in: result.tokens_in,
-        tokens_out: result.tokens_out,
-        cost_usd: result.cost_usd,
-        tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
-        issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
-      });
+        updateRun(this.db, run.id, { pid: proc.pid });
+
+        const timeoutMs = this.config.daemon.runTimeoutSeconds * 1000;
+        timeoutId = setTimeout(() => {
+          try {
+            proc.kill("SIGTERM");
+            setTimeout(() => {
+              try { proc.kill("SIGKILL"); } catch {}
+            }, 10000);
+          } catch {}
+        }, timeoutMs);
+
+        if (proc.stdout) {
+          const reader = proc.stdout.getReader();
+          let buffer = "";
+          try {
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += new TextDecoder().decode(value);
+              const lines = buffer.split("\n");
+              buffer = lines.pop() ?? "";
+              for (const line of lines) {
+                if (line.trim()) {
+                  stdoutBuffer.push(line);
+                  const event = this.driver.parseEvent(line);
+                  if (event) events.push(event);
+                }
+              }
+            }
+          } catch {}
+          reader.releaseLock();
+        }
+
+        if (proc.stderr) {
+          const stderrText = await new Response(proc.stderr).text();
+          for (const line of stderrText.split("\n")) {
+            if (line.trim()) stderrBuffer.push(line);
+          }
+        }
+
+        const exitCode = await proc.exited;
+        const result = this.driver.extractResult(events);
+        const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+        let status: string;
+        if (exitCode === 0) {
+          status = "success";
+        } else if (exitCode === null) {
+          status = "timeout";
+        } else {
+          status = "failed";
+        }
+
+        updateRun(this.db, run.id, {
+          status,
+          finished_at: now,
+          exit_code: exitCode,
+          stdout_tail: stdoutBuffer.toString(),
+          stderr_tail: stderrBuffer.toString(),
+          session_id: result.session_id,
+          tokens_in: result.tokens_in,
+          tokens_out: result.tokens_out,
+          cost_usd: result.cost_usd,
+          tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
+          issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
+        });
+      }
     } catch (err: any) {
       const now = new Date().toISOString().replace("T", " ").slice(0, 19);
       updateRun(this.db, run.id, {
@@ -219,6 +288,17 @@ export class ExecutionManager {
       });
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
+
+      // Clean up worktree
+      if (worktreePath && this.worktreeManager) {
+        try { await this.worktreeManager.remove(run.id); } catch {}
+      }
+
+      // Clean up tmux JSONL temp file
+      if (jsonlPath) {
+        try { fs.unlinkSync(jsonlPath); } catch {}
+        try { fs.unlinkSync(`${jsonlPath}.exit`); } catch {}
+      }
     }
   }
 }
@@ -327,7 +407,7 @@ export class Daemon {
     if (config.daemon.basePath) {
       this.worktreeManager = new WorktreeManager(config.daemon.basePath);
     }
-    this.executionManager = new ExecutionManager(db, config, driver);
+    this.executionManager = new ExecutionManager(db, config, driver, this.tmuxManager, this.worktreeManager);
     this.cronLoop = new CronLoop(db, config, this.executionManager);
     this.cleanupWorker = new CleanupWorker(db, config);
   }

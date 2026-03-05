@@ -1,22 +1,27 @@
 # prodboard
 
-Give Claude Code a persistent task board and a cron scheduler so it can manage work across sessions.
+Give AI coding agents a persistent task board and a cron scheduler so they can manage work across sessions.
 
-**The problem:** Claude Code loses context between sessions. It can't remember what tasks exist, what's in progress, or what to work on next. There's no way to schedule it to run recurring jobs like daily triage or nightly CI.
+**The problem:** AI coding agents lose context between sessions. They can't remember what tasks exist, what's in progress, or what to work on next. There's no way to schedule them to run recurring jobs like daily triage or nightly CI.
 
-**The solution:** prodboard is a local issue tracker backed by SQLite that Claude Code can read and write through MCP tools. It also includes a cron daemon that spawns Claude Code on a schedule to work through tasks autonomously.
+**The solution:** prodboard is a local issue tracker backed by SQLite that agents can read and write through MCP tools. It includes a cron daemon that spawns agents on a schedule, with optional tmux session wrapping and git worktree isolation.
 
 ```
 You (CLI)  ──┐
-              ├──▶  SQLite DB  ◀──  MCP Server  ◀──  Claude Code
-Cron Daemon ──┘
+              ├──▶  SQLite DB  ◀──  MCP Server  ◀──  Claude Code / OpenCode
+Cron Daemon ──┘         ▲
+Web UI ─────────────────┘
 ```
 
 ## What You Get
 
-- **An issue board Claude Code can use** — Claude reads, creates, updates, and completes issues via MCP tools during any session
-- **Scheduled Claude Code runs** — Define cron jobs that spawn Claude Code to triage issues, run maintenance, or work through the backlog
-- **A CLI you can use too** — Same board, human-friendly commands. Add issues, check status, review what Claude did
+- **An issue board your agent can use** — The agent reads, creates, updates, and completes issues via MCP tools during any session
+- **Scheduled agent runs** — Define cron jobs that spawn your agent to triage issues, run maintenance, or work through the backlog
+- **Multiple agent support** — Works with Claude Code (default) and OpenCode
+- **tmux sessions** — Running agents are wrapped in tmux sessions you can attach to and watch live
+- **Git worktree isolation** — Each scheduled run gets its own worktree so concurrent runs don't conflict
+- **Web UI** — Optional browser-based kanban board for managing issues, schedules, and runs
+- **A CLI you can use too** — Same board, human-friendly commands. Add issues, check status, review what the agent did
 - **Everything local** — Single SQLite file at `~/.prodboard/db.sqlite`. No servers, no accounts, no cloud
 
 ## Quick Start
@@ -195,6 +200,30 @@ These are the tools Claude Code sees when connected to the board:
 
 MCP resources: `prodboard://issues` (board summary) and `prodboard://schedules` (active schedules).
 
+## Supported Agents
+
+prodboard works with multiple AI coding agents. Set `daemon.agent` in your config:
+
+| Agent | Config value | Notes |
+|-------|-------------|-------|
+| **Claude Code** | `"claude"` (default) | Uses `claude` CLI with `--dangerously-skip-permissions` |
+| **OpenCode** | `"opencode"` | Uses `opencode run` with JSON output. Prodboard auto-starts `opencode serve` if needed |
+
+OpenCode-specific settings:
+
+```jsonc
+{
+  "daemon": {
+    "agent": "opencode",
+    "opencode": {
+      "serverUrl": null,   // auto-detect or override (e.g., "http://localhost:4096")
+      "model": null,       // e.g., "anthropic/claude-sonnet-4-20250514"
+      "agent": null        // opencode agent name
+    }
+  }
+}
+```
+
 ## Configuration
 
 Config file: `~/.prodboard/config.jsonc`
@@ -207,16 +236,78 @@ Config file: `~/.prodboard/config.jsonc`
     "idPrefix": ""
   },
   "daemon": {
+    "agent": "claude",            // "claude" or "opencode"
+    "basePath": null,             // base path for worktrees and runs (null = use schedule workdir)
+    "useTmux": true,              // wrap agent runs in tmux sessions
     "maxConcurrentRuns": 2,
     "maxTurns": 50,
     "hardMaxTurns": 200,
     "runTimeoutSeconds": 1800,
     "runRetentionDays": 30,
     "logLevel": "info",
-    "useWorktrees": "auto"
+    "useWorktrees": "auto"        // "auto", "always", or "never"
+  },
+  "webui": {
+    "enabled": false,             // enable the web UI
+    "port": 3838,
+    "hostname": "127.0.0.1",
+    "password": null              // set a password to require login
   }
 }
 ```
+
+## Web UI
+
+prodboard includes an optional browser-based interface for managing issues, schedules, and runs.
+
+To enable it, set `webui.enabled` in your config:
+
+```jsonc
+{
+  "webui": {
+    "enabled": true,
+    "port": 3838,
+    "password": "your-secret"  // optional — null for no auth
+  }
+}
+```
+
+Start the daemon and open `http://127.0.0.1:3838`. The web UI provides:
+
+- Kanban board with drag-and-drop issue management
+- Schedule creation and editing
+- Run monitoring with status, cost, and token usage
+- Password protection when `password` is set
+
+## tmux Sessions
+
+When `daemon.useTmux` is `true` (the default) and tmux is installed, each agent run is wrapped in a detached tmux session. This lets you attach and watch the agent work in real time:
+
+```bash
+# List active prodboard sessions
+tmux list-sessions | grep prodboard
+
+# Attach to a running agent
+tmux attach -t prodboard-<run-id-prefix>
+```
+
+The session name is `prodboard-` followed by the first 8 characters of the run ID (visible in `prodboard schedule logs`).
+
+If tmux is not installed, runs fall back to direct process spawning with piped stdout. A warning is logged at daemon startup.
+
+## Git Worktrees
+
+prodboard creates isolated git worktrees for each scheduled run, so concurrent runs in the same repository don't conflict.
+
+| `useWorktrees` | Behavior |
+|---------------|----------|
+| `"auto"` (default) | Create worktrees when the working directory is a git repo and the schedule allows it |
+| `"always"` | Always create worktrees (fails if directory is not a git repo) |
+| `"never"` | Never create worktrees |
+
+Worktrees are created under `<basePath>/.worktrees/<run-id>` on a branch named `prodboard/<run-id>`, and automatically cleaned up (directory + branch deleted) after the run completes.
+
+Per-schedule control: set `use_worktree` to `false` on a schedule to skip worktree creation for that specific job.
 
 ## Scheduler Details
 
@@ -282,9 +373,13 @@ prodboard install --force
 
 **MCP not connecting** — Verify `claude mcp add prodboard -- bunx prodboard mcp` was run, or check `~/.prodboard/mcp.json`.
 
-**Daemon not starting** — Check `~/.prodboard/logs/daemon.log`. Make sure `claude` CLI is installed and `ANTHROPIC_API_KEY` is set.
+**Daemon not starting** — Check `~/.prodboard/logs/daemon.log`. Make sure your agent CLI is installed (`claude` or `opencode`) and `ANTHROPIC_API_KEY` is set.
 
 **Stale PID file** — The daemon crashed. Run `prodboard daemon` to restart (auto-cleans stale PIDs).
+
+**tmux not working** — Install tmux (`apt install tmux` / `brew install tmux`). The daemon falls back to direct spawning without it.
+
+**Worktree errors** — Ensure the working directory is a git repo with at least one commit. Set `useWorktrees: "never"` to disable.
 
 ## Development
 
