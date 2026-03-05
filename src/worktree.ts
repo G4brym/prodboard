@@ -45,12 +45,19 @@ export class WorktreeManager {
       }
     } catch {}
 
-    // Delete the branch
+    // Delete the branch (try safe delete first, force-delete as fallback)
     try {
-      Bun.spawnSync(
-        ["git", "branch", "-D", branchName],
+      const result = Bun.spawnSync(
+        ["git", "branch", "-d", branchName],
         { cwd: this.basePath, stdout: "pipe", stderr: "pipe" }
       );
+      if (result.exitCode !== 0) {
+        console.error(`[prodboard] Warning: Branch ${branchName} has unmerged commits, force-deleting`);
+        Bun.spawnSync(
+          ["git", "branch", "-D", branchName],
+          { cwd: this.basePath, stdout: "pipe", stderr: "pipe" }
+        );
+      }
     } catch {}
   }
 

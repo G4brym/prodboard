@@ -24,8 +24,8 @@ export class OpenCodeServerManager {
     if (await this.isRunning()) return this._url;
 
     this.serverProcess = Bun.spawn(["opencode", "serve"], {
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: "ignore",
+      stderr: "ignore",
       env: process.env,
     });
 

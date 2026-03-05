@@ -48,6 +48,18 @@
     // Log level: "debug", "info", "warn", "error"
     // "logLevel": "info",
 
+    // Max size per log file in MB
+    // "logMaxSizeMb": 10,
+
+    // Max number of rotated log files
+    // "logMaxFiles": 5,
+
+    // Tools allowed for scheduled runs in git repos
+    // "defaultAllowedTools": ["Read", "Edit", "Write", "Glob", "Grep", "Bash", ...],
+
+    // Tools allowed for scheduled runs in non-git directories
+    // "nonGitDefaultAllowedTools": ["Read", "Edit", "Write", "Glob", "Grep", "Bash", ...],
+
     // Worktree usage: "auto", "always", "never"
     // "useWorktrees": "auto"
   },

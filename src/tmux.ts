@@ -23,7 +23,7 @@ export class TmuxManager {
 
   wrapCommand(sessionName: string, cmd: string[], jsonlPath: string): string[] {
     const escaped = cmd.map((arg) => shellEscape(arg)).join(" ");
-    const bashCmd = `${escaped} > ${shellEscape(jsonlPath)} 2>&1; echo $? > ${shellEscape(jsonlPath)}.exit`;
+    const bashCmd = `${escaped} > ${shellEscape(jsonlPath)}; echo $? > ${shellEscape(jsonlPath)}.exit`;
     return [
       "tmux", "new-session", "-d", "-s", sessionName,
       "bash", "-c", bashCmd,
@@ -45,7 +45,8 @@ export class TmuxManager {
     const exitFile = `${jsonlPath}.exit`;
     try {
       const code = fs.readFileSync(exitFile, "utf-8").trim();
-      return parseInt(code, 10) || 1;
+      const parsed = parseInt(code, 10);
+      return Number.isNaN(parsed) ? 1 : parsed;
     } catch {
       return 1;
     }

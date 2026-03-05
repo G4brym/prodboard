@@ -86,15 +86,20 @@ export function scheduleRoutes(db: Database, _config: Config) {
 
   app.post("/", async (c) => {
     const body = await c.req.parseBody();
-    const cron = body.cron as string;
+    const name = (body.name as string || "").trim();
+    const cron = (body.cron as string || "").trim();
+    const prompt = (body.prompt as string || "").trim();
+    if (!name) return c.text("Name is required", 400);
+    if (!cron) return c.text("Cron expression is required", 400);
+    if (!prompt) return c.text("Prompt is required", 400);
     const validation = validateCron(cron);
     if (!validation.valid) {
       return c.text(`Invalid cron expression: ${validation.error}`, 400);
     }
     createSchedule(db, {
-      name: body.name as string,
+      name,
       cron,
-      prompt: body.prompt as string,
+      prompt,
       workdir: (body.workdir as string) || ".",
       source: "webui",
     });
