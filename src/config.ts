@@ -252,3 +252,48 @@ export async function checkWebuiDependencies(): Promise<string[]> {
   }
   return warnings;
 }
+
+export async function checkTmuxAvailable(): Promise<string | null> {
+  try {
+    const proc = Bun.spawn(["tmux", "-V"], { stdout: "ignore", stderr: "ignore" });
+    const code = await proc.exited;
+    if (code !== 0) {
+      return "daemon.useTmux is enabled but tmux is not installed. Install it (e.g. apt install tmux) or set useTmux to false.";
+    }
+    return null;
+  } catch {
+    return "daemon.useTmux is enabled but tmux is not installed. Install it (e.g. apt install tmux) or set useTmux to false.";
+  }
+}
+
+export async function printConfigWarnings(): Promise<void> {
+  let config: Config;
+  let rawParsed: any;
+  try {
+    const result = loadConfigRaw();
+    config = result.config;
+    rawParsed = result.rawParsed;
+  } catch (err: any) {
+    console.warn(`⚠ Config: ${err.message}`);
+    return;
+  }
+
+  const { warnings } = validateConfig(rawParsed);
+  for (const w of warnings) {
+    console.warn(`⚠ Config: ${w}`);
+  }
+
+  if (config.daemon.useTmux) {
+    const tmuxWarning = await checkTmuxAvailable();
+    if (tmuxWarning) {
+      console.warn(`⚠ ${tmuxWarning}`);
+    }
+  }
+
+  if (config.webui.enabled) {
+    const depWarnings = await checkWebuiDependencies();
+    for (const w of depWarnings) {
+      console.warn(`⚠ ${w}`);
+    }
+  }
+}

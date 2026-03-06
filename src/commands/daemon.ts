@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { ensureDb } from "../db.ts";
-import { loadConfig, loadConfigRaw, validateConfig, checkWebuiDependencies, PRODBOARD_DIR } from "../config.ts";
+import { loadConfig, PRODBOARD_DIR } from "../config.ts";
 import { listSchedules } from "../queries/schedules.ts";
 import { getNextFire } from "../cron.ts";
 import { formatDate } from "../format.ts";
@@ -114,34 +114,6 @@ export async function daemonStatus(args: string[]): Promise<void> {
 }
 
 export async function daemonRestart(_args: string[]): Promise<void> {
-  // Validate config
-  let config;
-  try {
-    const { config: cfg, rawParsed } = loadConfigRaw();
-    config = cfg;
-    const { errors, warnings } = validateConfig(rawParsed);
-    for (const e of errors) {
-      console.error(`✗ Config: ${e}`);
-    }
-    if (errors.length > 0) {
-      process.exit(1);
-    }
-    for (const w of warnings) {
-      console.warn(`⚠ Config: ${w}`);
-    }
-  } catch (err: any) {
-    console.error(`Config error: ${err.message}`);
-    process.exit(1);
-  }
-
-  // Check webui dependencies
-  if (config.webui.enabled) {
-    const depWarnings = await checkWebuiDependencies();
-    for (const w of depWarnings) {
-      console.warn(`⚠ ${w}`);
-    }
-  }
-
   // Check systemd availability
   if (!(await systemctlAvailable())) {
     console.error("systemd is not available. daemon restart requires systemd.");

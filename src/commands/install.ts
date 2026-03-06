@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { loadConfigRaw, validateConfig, checkWebuiDependencies } from "../config.ts";
+
 
 const SERVICE_NAME = "prodboard";
 const SERVICE_DIR = path.join(os.homedir(), ".config", "systemd", "user");
@@ -62,24 +62,6 @@ WantedBy=default.target
 
 export async function install(args: string[]): Promise<void> {
   const { flags } = parseArgs(args);
-
-  // Validate config before proceeding
-  try {
-    const { config, rawParsed } = loadConfigRaw();
-    const { warnings } = validateConfig(rawParsed);
-    for (const w of warnings) {
-      console.warn(`⚠ Config: ${w}`);
-    }
-    if (config.webui.enabled) {
-      const depWarnings = await checkWebuiDependencies();
-      for (const w of depWarnings) {
-        console.warn(`⚠ ${w}`);
-      }
-    }
-  } catch (err: any) {
-    console.error(`Config error: ${err.message}`);
-    process.exit(1);
-  }
 
   if (!(await systemctlAvailable())) {
     console.error("systemd is not available on this system.");

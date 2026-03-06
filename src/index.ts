@@ -1,5 +1,5 @@
 import { existsSync } from "fs";
-import { PRODBOARD_DIR } from "./config.ts";
+import { PRODBOARD_DIR, printConfigWarnings } from "./config.ts";
 
 export class NotInitializedError extends Error {
   constructor() {
@@ -34,6 +34,17 @@ export async function main(): Promise<void> {
   if (command === "--help" || command === "help" || !command) {
     printHelp();
     return;
+  }
+
+  // Show config warnings for commands that use the config
+  const skipWarnings = ["init", "mcp", "version", "--version", "help", "--help", "uninstall"];
+  if (!skipWarnings.includes(command)) {
+    try {
+      ensureInitialized();
+      await printConfigWarnings();
+    } catch {
+      // ensureInitialized will throw again inside the switch if needed
+    }
   }
 
   try {
