@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.2.1
+
+### Patch Changes
+
+- [#9](https://github.com/G4brym/prodboard/pull/9) [`d418fc4`](https://github.com/G4brym/prodboard/commit/d418fc41b52e26789dd3b5be7f2dcdf9429ef287) Thanks [@G4brym](https://github.com/G4brym)! - Add `daemon restart` command with config validation and webui dependency checks. The `install` command now also validates config before proceeding. Invalid config values produce clear warnings with fix tips.
+
 ## 0.2.0
 
 ### Minor Changes
