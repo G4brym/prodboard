@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.2.2
+
+### Patch Changes
+
+- [`62ef4b0`](https://github.com/G4brym/prodboard/commit/62ef4b0a1f6969e3d06f549635ebfd337b84403c) Thanks [@G4brym](https://github.com/G4brym)! - Show config warnings (tmux availability, webui dependencies) on every CLI command. Improved webui dependency messages with actionable install commands.
+
 ## 0.2.1
 
 ### Patch Changes
