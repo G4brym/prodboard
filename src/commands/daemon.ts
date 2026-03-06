@@ -1,11 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import { ensureDb } from "../db.ts";
-import { loadConfig, PRODBOARD_DIR } from "../config.ts";
+import { loadConfig, loadConfigRaw, validateConfig, checkWebuiDependencies, PRODBOARD_DIR } from "../config.ts";
 import { listSchedules } from "../queries/schedules.ts";
 import { getNextFire } from "../cron.ts";
 import { formatDate } from "../format.ts";
 import { Daemon } from "../scheduler.ts";
+import { systemctlAvailable, runSystemctl } from "./install.ts";
 
 function parseArgs(args: string[]): { flags: Record<string, string | boolean>; positional: string[] } {
   const flags: Record<string, string | boolean> = {};
@@ -109,4 +111,58 @@ export async function daemonStatus(args: string[]): Promise<void> {
     // Clean up stale PID file
     try { fs.unlinkSync(pidFile); } catch {}
   }
+}
+
+export async function daemonRestart(_args: string[]): Promise<void> {
+  // Validate config
+  let config;
+  try {
+    const { config: cfg, rawParsed } = loadConfigRaw();
+    config = cfg;
+    const { errors, warnings } = validateConfig(rawParsed);
+    for (const e of errors) {
+      console.error(`✗ Config: ${e}`);
+    }
+    if (errors.length > 0) {
+      process.exit(1);
+    }
+    for (const w of warnings) {
+      console.warn(`⚠ Config: ${w}`);
+    }
+  } catch (err: any) {
+    console.error(`Config error: ${err.message}`);
+    process.exit(1);
+  }
+
+  // Check webui dependencies
+  if (config.webui.enabled) {
+    const depWarnings = await checkWebuiDependencies();
+    for (const w of depWarnings) {
+      console.warn(`⚠ ${w}`);
+    }
+  }
+
+  // Check systemd availability
+  if (!(await systemctlAvailable())) {
+    console.error("systemd is not available. daemon restart requires systemd.");
+    process.exit(1);
+  }
+
+  // Check service file exists
+  const servicePath = path.join(os.homedir(), ".config", "systemd", "user", "prodboard.service");
+  if (!fs.existsSync(servicePath)) {
+    console.error("prodboard is not installed as a systemd service. Run: prodboard install");
+    process.exit(1);
+  }
+
+  // Restart and show status
+  const restart = await runSystemctl("restart", "prodboard");
+  if (restart.exitCode !== 0) {
+    console.error("Failed to restart prodboard:", restart.stderr);
+    process.exit(1);
+  }
+
+  console.log("prodboard daemon restarted.");
+  const { stdout } = await runSystemctl("status", "prodboard");
+  console.log(stdout);
 }

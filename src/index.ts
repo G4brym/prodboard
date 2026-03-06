@@ -137,6 +137,8 @@ export async function main(): Promise<void> {
         const daemonMod = await import("./commands/daemon.ts");
         if (sub === "status") {
           await daemonMod.daemonStatus(args.slice(2));
+        } else if (sub === "restart") {
+          await daemonMod.daemonRestart(args.slice(2));
         } else {
           await daemonMod.daemonStart(args.slice(1));
         }
@@ -201,6 +203,8 @@ Commands:
   comments <id>     List comments for an issue
   schedule <sub>    Manage scheduled tasks
   daemon            Start the scheduler daemon
+  daemon restart    Restart the daemon (systemd)
+  daemon status     Show daemon status
   install           Install systemd service
   uninstall         Remove systemd service
   config            Show configuration

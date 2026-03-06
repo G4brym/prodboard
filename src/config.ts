@@ -140,13 +140,13 @@ export function deepMerge(defaults: any, user: any): any {
   return result;
 }
 
-export function loadConfig(configDir?: string): Config {
+export function loadConfigRaw(configDir?: string): { config: Config; rawParsed: any } {
   const dir = configDir ?? PRODBOARD_DIR;
   const configPath = path.join(dir, "config.jsonc");
   const defaults = getDefaults();
 
   if (!fs.existsSync(configPath)) {
-    return defaults;
+    return { config: defaults, rawParsed: {} };
   }
 
   let text: string;
@@ -165,5 +165,90 @@ export function loadConfig(configDir?: string): Config {
     throw new Error(`Invalid JSON in config file ${configPath}: ${err.message}`);
   }
 
-  return deepMerge(defaults, parsed);
+  return { config: deepMerge(defaults, parsed), rawParsed: parsed };
+}
+
+export function loadConfig(configDir?: string): Config {
+  return loadConfigRaw(configDir).config;
+}
+
+export function validateConfig(rawParsed: any): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (typeof rawParsed !== "object" || rawParsed === null) {
+    errors.push("Config must be a JSON object.");
+    return { errors, warnings };
+  }
+
+  const knownTopLevel = ["general", "daemon", "webui"];
+  for (const key of Object.keys(rawParsed)) {
+    if (!knownTopLevel.includes(key)) {
+      warnings.push(`Unknown top-level key "${key}". Known keys: ${knownTopLevel.join(", ")}`);
+    }
+  }
+
+  const g = rawParsed.general;
+  if (g !== undefined) {
+    if (g.statuses !== undefined && (!Array.isArray(g.statuses) || !g.statuses.every((s: any) => typeof s === "string"))) {
+      warnings.push("general.statuses must be an array of strings.");
+    }
+    if (g.defaultStatus !== undefined && typeof g.defaultStatus !== "string") {
+      warnings.push(`general.defaultStatus must be a string, got ${typeof g.defaultStatus}.`);
+    }
+  }
+
+  const d = rawParsed.daemon;
+  if (d !== undefined) {
+    if (d.agent !== undefined && d.agent !== "claude" && d.agent !== "opencode") {
+      warnings.push(`daemon.agent must be "claude" or "opencode", got "${d.agent}".`);
+    }
+    if (d.useWorktrees !== undefined && !["auto", "always", "never"].includes(d.useWorktrees)) {
+      warnings.push(`daemon.useWorktrees must be "auto", "always", or "never", got "${d.useWorktrees}".`);
+    }
+    if (d.useTmux !== undefined && typeof d.useTmux !== "boolean") {
+      warnings.push(`daemon.useTmux must be a boolean, got ${typeof d.useTmux}.`);
+    }
+    for (const numField of ["maxConcurrentRuns", "maxTurns", "hardMaxTurns", "runTimeoutSeconds", "runRetentionDays"]) {
+      if (d[numField] !== undefined && typeof d[numField] !== "number") {
+        warnings.push(`daemon.${numField} must be a number, got ${typeof d[numField]}.`);
+      }
+    }
+  }
+
+  const w = rawParsed.webui;
+  if (w !== undefined) {
+    if (w.enabled !== undefined && typeof w.enabled !== "boolean") {
+      warnings.push(`webui.enabled must be a boolean, got ${typeof w.enabled}.`);
+    }
+    if (w.port !== undefined && (typeof w.port !== "number" || w.port < 1 || w.port > 65535)) {
+      warnings.push(`webui.port must be a number between 1 and 65535, got ${JSON.stringify(w.port)}.`);
+    }
+    if (w.hostname !== undefined && typeof w.hostname !== "string") {
+      warnings.push(`webui.hostname must be a string, got ${typeof w.hostname}.`);
+    }
+    if (w.password !== undefined && w.password !== null && typeof w.password !== "string") {
+      warnings.push(`webui.password must be a string or null, got ${typeof w.password}.`);
+    }
+  }
+
+  return { errors, warnings };
+}
+
+export async function checkWebuiDependencies(): Promise<string[]> {
+  const warnings: string[] = [];
+  try {
+    await import("hono");
+  } catch {
+    warnings.push("webui is enabled but 'hono' is not installed. Run: bun install");
+  }
+  try {
+    await import("hono/jsx/jsx-runtime");
+  } catch {
+    warnings.push(
+      "webui is enabled but the Hono JSX runtime could not be loaded. " +
+      "If prodboard is installed globally, you may need to install hono in the global package directory."
+    );
+  }
+  return warnings;
 }
