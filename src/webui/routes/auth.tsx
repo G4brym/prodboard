@@ -1,3 +1,4 @@
+/** @jsxImportSource hono/jsx */
 import { Hono } from "hono";
 import crypto from "crypto";
 import { Layout } from "../components/layout.tsx";

@@ -1,3 +1,4 @@
+/** @jsxImportSource hono/jsx */
 import type { FC } from "hono/jsx";
 import type { Issue } from "../../types.ts";
 import { StatusBadge } from "./status-badge.tsx";

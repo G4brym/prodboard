@@ -1,3 +1,4 @@
+/** @jsxImportSource hono/jsx */
 import { Hono } from "hono";
 import type { Database } from "bun:sqlite";
 import type { Config } from "../../types.ts";
