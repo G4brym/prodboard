@@ -166,6 +166,7 @@ prodboard schedule stats --days 7                    # Statistics
 prodboard daemon                                     # Start (foreground)
 prodboard daemon --dry-run                           # Preview schedules
 prodboard daemon status                              # Check if running
+prodboard daemon restart                             # Restart via systemd
 ```
 
 ### Other
