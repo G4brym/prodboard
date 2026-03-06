@@ -240,14 +240,18 @@ export async function checkWebuiDependencies(): Promise<string[]> {
   try {
     await import("hono");
   } catch {
-    warnings.push("webui is enabled but 'hono' is not installed. Run: bun install");
+    warnings.push(
+      "webui is enabled but 'hono' is not installed. " +
+      "Run: bun install hono (or bun install -g hono if prodboard is installed globally)"
+    );
+    return warnings; // skip JSX check if hono itself is missing
   }
   try {
     await import("hono/jsx/jsx-runtime");
   } catch {
     warnings.push(
       "webui is enabled but the Hono JSX runtime could not be loaded. " +
-      "If prodboard is installed globally, you may need to install hono in the global package directory."
+      "Run: bun install hono (or bun install -g hono if prodboard is installed globally)"
     );
   }
   return warnings;
