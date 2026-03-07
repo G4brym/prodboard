@@ -18,32 +18,63 @@ export function issueRoutes(db: Database, config: Config) {
     const { issues } = listIssues(db, { includeArchived: true, limit: 500 });
     return c.html(
       <Layout title="Issues">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-          <h1>Issues</h1>
-          <a href="#new-issue" class="btn btn-primary btn-sm" onclick="document.getElementById('new-issue-form').style.display='block'">New Issue</a>
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h1 class="text-xl font-semibold">Issues</h1>
+            <p class="text-sm text-muted-foreground mt-0.5">{issues.length} total</p>
+          </div>
+          <button
+            onclick="document.getElementById('new-issue-form').classList.toggle('hidden')"
+            class="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            New Issue
+          </button>
         </div>
-        <div id="new-issue-form" style="display:none;margin-bottom:1rem" class="detail">
-          <h2>New Issue</h2>
-          <form method="post" action="/issues">
-            <div class="form-row">
-              <label for="title">Title</label>
-              <input type="text" name="title" id="title" required />
-            </div>
-            <div class="form-row">
-              <label for="description">Description</label>
-              <textarea name="description" id="description"></textarea>
-            </div>
-            <div class="form-row">
-              <label for="status">Status</label>
-              <select name="status" id="status">
-                {config.general.statuses.map((s) => (
-                  <option value={s} selected={s === config.general.defaultStatus}>{s}</option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" class="btn btn-primary">Create</button>
-          </form>
+
+        <div id="new-issue-form" class="hidden mb-6">
+          <div class="rounded-lg border border-border bg-card p-5">
+            <h2 class="text-base font-semibold text-card-foreground mb-4">Create Issue</h2>
+            <form method="post" action="/issues">
+              <div class="grid gap-4">
+                <div>
+                  <label for="title" class="block text-sm font-medium text-foreground mb-1.5">Title</label>
+                  <input type="text" name="title" id="title" required
+                    class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                    placeholder="Issue title"
+                  />
+                </div>
+                <div>
+                  <label for="description" class="block text-sm font-medium text-foreground mb-1.5">Description</label>
+                  <textarea name="description" id="description" rows={3}
+                    class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background resize-y"
+                    placeholder="Optional description"
+                  ></textarea>
+                </div>
+                <div>
+                  <label for="status" class="block text-sm font-medium text-foreground mb-1.5">Status</label>
+                  <select name="status" id="status"
+                    class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                  >
+                    {config.general.statuses.map((s) => (
+                      <option value={s} selected={s === config.general.defaultStatus}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <button type="button"
+                    onclick="document.getElementById('new-issue-form').classList.add('hidden')"
+                    class="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                  >Cancel</button>
+                  <button type="submit"
+                    class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >Create</button>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
+
         <Board issues={issues} statuses={config.general.statuses} />
       </Layout>
     );
@@ -69,46 +100,73 @@ export function issueRoutes(db: Database, config: Config) {
     const comments = listComments(db, issue.id);
     return c.html(
       <Layout title={issue.title}>
-        <div class="detail">
-          <h1>
-            <StatusBadge status={issue.status} />
-            {issue.title}
-          </h1>
-          <div class="detail-meta">
-            ID: {issue.id} | Created: {issue.created_at} | Updated: {issue.updated_at}
+        <div class="mb-4">
+          <a href="/issues" class="text-sm text-muted-foreground hover:text-foreground transition-colors">&larr; Back to issues</a>
+        </div>
+
+        <div class="rounded-lg border border-border bg-card p-5 mb-4">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <StatusBadge status={issue.status} />
+              <h1 class="text-lg font-semibold text-card-foreground">{issue.title}</h1>
+            </div>
           </div>
-          {issue.description && <div class="description">{issue.description}</div>}
-          <div class="actions">
-            <form method="post" action={`/issues/${issue.id}/move`} style="display:flex;gap:0.5rem;align-items:center">
-              <select name="status">
+          <div class="mt-2 flex items-center gap-3 text-xs text-muted-foreground font-mono">
+            <span>{issue.id}</span>
+            <span>&middot;</span>
+            <span>Created {issue.created_at}</span>
+            <span>&middot;</span>
+            <span>Updated {issue.updated_at}</span>
+          </div>
+          {issue.description && (
+            <div class="mt-4 rounded-md bg-muted p-4 text-sm text-foreground whitespace-pre-wrap">{issue.description}</div>
+          )}
+          <div class="mt-4 flex items-center gap-2 pt-4 border-t border-border">
+            <form method="post" action={`/issues/${issue.id}/move`} class="flex items-center gap-2">
+              <select name="status"
+                class="rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
                 {config.general.statuses.map((s) => (
                   <option value={s} selected={s === issue.status}>{s}</option>
                 ))}
               </select>
-              <button type="submit" class="btn btn-primary btn-sm">Move</button>
+              <button type="submit"
+                class="rounded-md bg-secondary px-2.5 py-1.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+              >Move</button>
             </form>
             <form method="post" action={`/issues/${issue.id}/delete`} onsubmit="return confirm('Delete this issue?')">
-              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+              <button type="submit"
+                class="rounded-md bg-destructive/15 border border-destructive/30 px-2.5 py-1.5 text-sm font-medium text-red-400 hover:bg-destructive/25 transition-colors"
+              >Delete</button>
             </form>
           </div>
         </div>
 
-        <div class="detail">
-          <h2>Comments ({comments.length})</h2>
-          {comments.map((comment) => (
-            <div class="comment" key={comment.id}>
-              <div>
-                <span class="comment-author">{comment.author}</span>
-                <span class="comment-date"> - {comment.created_at}</span>
-              </div>
-              <div>{comment.body}</div>
+        <div class="rounded-lg border border-border bg-card p-5">
+          <h2 class="text-sm font-semibold text-card-foreground mb-4">Comments <span class="text-muted-foreground font-normal">({comments.length})</span></h2>
+          {comments.length > 0 && (
+            <div class="space-y-3 mb-4">
+              {comments.map((comment) => (
+                <div class="border-l-2 border-border pl-3 py-1" key={comment.id}>
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="font-semibold text-foreground">{comment.author}</span>
+                    <span class="text-muted-foreground">{comment.created_at}</span>
+                  </div>
+                  <div class="text-sm text-foreground/90 mt-0.5">{comment.body}</div>
+                </div>
+              ))}
             </div>
-          ))}
-          <form method="post" action={`/issues/${issue.id}/comment`} style="margin-top:1rem">
-            <div class="form-row">
-              <textarea name="body" placeholder="Add a comment..." required></textarea>
+          )}
+          <form method="post" action={`/issues/${issue.id}/comment`}>
+            <textarea name="body" required rows={2}
+              class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background resize-y"
+              placeholder="Add a comment..."
+            ></textarea>
+            <div class="flex justify-end mt-2">
+              <button type="submit"
+                class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >Comment</button>
             </div>
-            <button type="submit" class="btn btn-primary btn-sm">Comment</button>
           </form>
         </div>
       </Layout>

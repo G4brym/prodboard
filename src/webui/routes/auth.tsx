@@ -23,16 +23,39 @@ export function authRoutes(_db: Database, _config: Config, authSalt: string) {
     const error = c.req.query("error");
     return c.html(
       <Layout title="Login">
-        <div class="login-box">
-          <h1>Login</h1>
-          {error && <div class="flash">Invalid password</div>}
-          <form method="post" action="/login">
-            <div class="form-row">
-              <label for="password">Password</label>
-              <input type="password" name="password" id="password" required autofocus />
+        <div class="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+          <div class="w-full max-w-sm">
+            <div class="rounded-lg border border-border bg-card p-6">
+              <div class="mb-6">
+                <h1 class="text-lg font-semibold text-card-foreground">Login</h1>
+                <p class="text-sm text-muted-foreground mt-1">Enter your password to access prodboard.</p>
+              </div>
+              {error && (
+                <div class="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  Invalid password
+                </div>
+              )}
+              <form method="post" action="/login">
+                <div class="mb-4">
+                  <label for="password" class="block text-sm font-medium text-foreground mb-1.5">Password</label>
+                  <input
+                    type="password"
+                    name="password"
+                    id="password"
+                    required
+                    autofocus
+                    class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  class="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  Sign in
+                </button>
+              </form>
             </div>
-            <button type="submit" class="btn btn-primary">Login</button>
-          </form>
+          </div>
         </div>
       </Layout>
     );
