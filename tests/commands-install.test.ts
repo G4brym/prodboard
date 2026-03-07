@@ -33,4 +33,16 @@ describe("install command", () => {
     expect(result).toContain("RestartSec=10");
     expect(result).toContain("Type=simple");
   });
+
+  test("generateServiceFile includes PATH when provided", () => {
+    const result = generateServiceFile("/usr/bin/bun", "/usr/bin/prodboard", "/home/testuser", "/home/testuser/.local/bin:/usr/bin");
+
+    expect(result).toContain('Environment="PATH=/home/testuser/.local/bin:/usr/bin"');
+  });
+
+  test("generateServiceFile omits PATH when not provided", () => {
+    const result = generateServiceFile("/usr/bin/bun", "/usr/bin/prodboard", "/home/testuser");
+
+    expect(result).not.toContain("PATH=");
+  });
 });

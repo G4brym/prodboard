@@ -43,7 +43,8 @@ export async function runSystemctl(...args: string[]): Promise<{ exitCode: numbe
   return { exitCode, stdout, stderr };
 }
 
-export function generateServiceFile(bunPath: string, prodboardPath: string, home: string): string {
+export function generateServiceFile(bunPath: string, prodboardPath: string, home: string, envPath?: string): string {
+  const pathLine = envPath ? `\nEnvironment="PATH=${envPath}"` : "";
   return `[Unit]
 Description=prodboard scheduler daemon
 After=network.target
@@ -53,7 +54,7 @@ Type=simple
 ExecStart=${bunPath} run ${prodboardPath} daemon
 Restart=on-failure
 RestartSec=10
-Environment="HOME=${home}"
+Environment="HOME=${home}"${pathLine}
 
 [Install]
 WantedBy=default.target
@@ -83,7 +84,7 @@ export async function install(args: string[]): Promise<void> {
   const prodboardPath = Bun.which("prodboard") ?? `${bunPath} x prodboard`;
   const home = os.homedir();
 
-  const serviceContent = generateServiceFile(bunPath, prodboardPath, home);
+  const serviceContent = generateServiceFile(bunPath, prodboardPath, home, process.env.PATH);
 
   fs.mkdirSync(SERVICE_DIR, { recursive: true });
   fs.writeFileSync(SERVICE_PATH, serviceContent);
