@@ -1,5 +1,17 @@
 # prodboard
 
+## 0.2.3
+
+### Patch Changes
+
+- [#13](https://github.com/G4brym/prodboard/pull/13) [`5465723`](https://github.com/G4brym/prodboard/commit/54657238021a20fb0d5a4bb6e13a1b8eab026c31) Thanks [@G4brym](https://github.com/G4brym)! - Fix systemd service missing PATH environment variable
+
+  The generated systemd service file only set `HOME` but not `PATH`, causing the daemon to run with a minimal default PATH. This meant tools like `claude` and `gh` installed in user-local directories (e.g. `~/.local/bin`) were not found, resulting in scheduled runs failing with exit code 127.
+
+  The fix captures the current `PATH` at install time and includes it in the systemd service file.
+
+- [`af1ff32`](https://github.com/G4brym/prodboard/commit/af1ff3291993e0720a4044220b84f8b048fef26e) Thanks [@G4brym](https://github.com/G4brym)! - Fix webui failing to load when prodboard is installed globally by adding `@jsxImportSource hono/jsx` pragma to all TSX files.
+
 ## 0.2.2
 
 ### Patch Changes
