@@ -93,7 +93,7 @@ describe("Run Queries", () => {
     const pruned = pruneOldRuns(db, 30);
     expect(pruned).toBe(1);
 
-    const remaining = listRuns(db);
+    const remaining = listRuns(db, { include_output: true });
     expect(remaining.length).toBe(1);
     expect(remaining[0].prompt_used).toBe("new");
   });

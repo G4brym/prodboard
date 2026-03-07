@@ -205,6 +205,7 @@ export async function scheduleLogs(args: string[], dbOverride?: Database): Promi
     schedule_id: (flags.schedule ?? flags.s) as string | undefined,
     status: flags.status as string | undefined,
     limit: safeParseInt(flags.limit ?? flags.n),
+    include_output: isJson,
   });
 
   if (isJson) {

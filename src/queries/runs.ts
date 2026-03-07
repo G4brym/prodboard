@@ -50,7 +50,7 @@ export function updateRun(
 
 export function listRuns(
   db: Database,
-  opts?: { schedule_id?: string; status?: string; limit?: number }
+  opts?: { schedule_id?: string; status?: string; limit?: number; include_output?: boolean }
 ): Run[] {
   const conditions: string[] = [];
   const params: any[] = [];
@@ -67,8 +67,15 @@ export function listRuns(
   const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
   const limit = opts?.limit ?? 50;
 
+  const columns = opts?.include_output
+    ? "r.*"
+    : `r.id, r.schedule_id, r.status, r.pid, r.started_at, r.finished_at,
+       r.exit_code, r.stderr_tail, r.session_id, r.worktree_path,
+       r.tokens_in, r.tokens_out, r.cost_usd, r.tools_used,
+       r.issues_touched, r.tmux_session, r.agent`;
+
   return db.query(`
-    SELECT r.*, s.name as schedule_name
+    SELECT ${columns}, s.name as schedule_name
     FROM runs r
     LEFT JOIN schedules s ON r.schedule_id = s.id
     ${where}
