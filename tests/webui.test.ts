@@ -54,6 +54,14 @@ describe("Web UI - Issues", () => {
     expect(html).toContain("Issues");
   });
 
+  test("GET /issues includes auto-refresh polling script", async () => {
+    const res = await get("/issues");
+    const html = await res.text();
+    expect(html).toContain("id=\"board\"");
+    expect(html).toContain("/api/issues");
+    expect(html).toContain("setInterval");
+  });
+
   test("GET /issues groups by status", async () => {
     createIssue(db, { title: "Todo Item", status: "todo" });
     createIssue(db, { title: "In Progress Item", status: "in-progress" });
@@ -239,6 +247,25 @@ describe("Web UI - Runs", () => {
     const json = await res.json();
     expect(json.active_runs).toBe(1);
   });
+
+  test("GET /api/issues returns all issues as JSON", async () => {
+    createIssue(db, { title: "Issue A", status: "todo" });
+    createIssue(db, { title: "Issue B", status: "in-progress" });
+    const res = await get("/api/issues");
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.length).toBe(2);
+    expect(json[0]).toHaveProperty("id");
+    expect(json[0]).toHaveProperty("title");
+    expect(json[0]).toHaveProperty("status");
+  });
+
+  test("GET /api/issues returns empty array when no issues", async () => {
+    const res = await get("/api/issues");
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual([]);
+  });
 });
 
 describe("Web UI - Auth", () => {
@@ -281,6 +308,13 @@ describe("Web UI - Auth", () => {
   test("/api/status requires auth when password is set", async () => {
     const cfg: Partial<Config> = { webui: { enabled: true, port: 3838, hostname: "127.0.0.1", password: "secret" } };
     const res = await get("/api/status", cfg);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/login");
+  });
+
+  test("/api/issues requires auth when password is set", async () => {
+    const cfg: Partial<Config> = { webui: { enabled: true, port: 3838, hostname: "127.0.0.1", password: "secret" } };
+    const res = await get("/api/issues", cfg);
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/login");
   });

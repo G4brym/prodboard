@@ -14,7 +14,7 @@ export const Board: FC<{ issues: Issue[]; statuses: string[] }> = ({ issues, sta
   }
 
   return (
-    <div class="flex gap-4 overflow-x-auto pb-4">
+    <div id="board" data-statuses={JSON.stringify(statuses.filter((s) => s !== "archived"))} class="flex gap-4 overflow-x-auto pb-4">
       {statuses.filter((s) => s !== "archived").map((status) => (
         <div class="flex-1 min-w-[220px]" key={status}>
           <div class="flex items-center gap-2 mb-3 px-1">
