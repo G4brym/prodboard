@@ -21,7 +21,7 @@ export function issueRoutes(db: Database, config: Config) {
         <div class="flex items-center justify-between mb-6">
           <div>
             <h1 class="text-xl font-semibold">Issues</h1>
-            <p class="text-sm text-muted-foreground mt-0.5">{issues.length} total</p>
+            <p id="board-total" class="text-sm text-muted-foreground mt-0.5">{issues.length} total</p>
           </div>
           <button
             onclick="document.getElementById('new-issue-form').classList.toggle('hidden')"
@@ -76,6 +76,84 @@ export function issueRoutes(db: Database, config: Config) {
         </div>
 
         <Board issues={issues} statuses={config.general.statuses} />
+
+        <p id="board-updated" class="text-xs text-muted-foreground/50 mt-2 text-right"></p>
+
+        <script dangerouslySetInnerHTML={{ __html: `
+(function() {
+  var INTERVAL = 30000;
+  var board = document.getElementById('board');
+  var updatedEl = document.getElementById('board-updated');
+  var statuses = JSON.parse(board.dataset.statuses);
+  var lastUpdate = Date.now();
+
+  var STATUS_STYLES = {
+    'todo': 'bg-zinc-700/50 text-zinc-300 border-zinc-600',
+    'in-progress': 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    'review': 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    'done': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    'human-approval': 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    'running': 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+  };
+  var DEFAULT_STYLE = 'bg-zinc-700/50 text-zinc-300 border-zinc-600';
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderBoard(issues) {
+    var grouped = {};
+    statuses.forEach(function(s) { grouped[s] = []; });
+    issues.forEach(function(issue) {
+      if (grouped[issue.status]) grouped[issue.status].push(issue);
+    });
+
+    var html = '';
+    statuses.forEach(function(status) {
+      var items = grouped[status] || [];
+      html += '<div class="flex-1 min-w-[220px]">';
+      html += '<div class="flex items-center gap-2 mb-3 px-1">';
+      html += '<h3 class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">' + escapeHtml(status) + '</h3>';
+      html += '<span class="text-xs text-muted-foreground/60">' + items.length + '</span>';
+      html += '</div>';
+      html += '<div class="space-y-2">';
+      items.forEach(function(issue) {
+        html += '<a href="/issues/' + escapeHtml(issue.id) + '" class="block rounded-lg border border-border bg-card p-3 hover:bg-accent transition-colors group">';
+        html += '<div class="text-sm font-medium text-card-foreground group-hover:text-foreground">' + escapeHtml(issue.title) + '</div>';
+        html += '<div class="text-xs text-muted-foreground mt-1 font-mono">' + escapeHtml(issue.id.slice(0, 8)) + '</div>';
+        html += '</a>';
+      });
+      html += '</div></div>';
+    });
+
+    board.innerHTML = html;
+  }
+
+  function updateTimestamp() {
+    var secs = Math.round((Date.now() - lastUpdate) / 1000);
+    updatedEl.textContent = 'Updated ' + secs + 's ago';
+  }
+
+  function poll() {
+    fetch('/api/issues')
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(issues) {
+        if (!issues) return;
+        renderBoard(issues);
+        var countEl = document.getElementById('board-total');
+        if (countEl) countEl.textContent = issues.length + ' total';
+        lastUpdate = Date.now();
+        updateTimestamp();
+      })
+      .catch(function() {});
+  }
+
+  setInterval(poll, INTERVAL);
+  setInterval(updateTimestamp, 5000);
+})();
+        ` }} />
       </Layout>
     );
   });

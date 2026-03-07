@@ -5,6 +5,7 @@ import type { Config } from "../../types.ts";
 import { Layout } from "../components/layout.tsx";
 import { StatusBadge } from "../components/status-badge.tsx";
 import { listRuns, getRunningRuns } from "../../queries/runs.ts";
+import { listIssues } from "../../queries/issues.ts";
 import type { Run } from "../../types.ts";
 
 export function runRoutes(db: Database, _config: Config) {
@@ -135,6 +136,11 @@ export function apiRoutes(db: Database, _config: Config) {
       active_runs: running.length,
       recent_runs: recent.length,
     });
+  });
+
+  app.get("/issues", (c) => {
+    const { issues } = listIssues(db, { includeArchived: true, limit: 500 });
+    return c.json(issues);
   });
 
   return app;
