@@ -5,7 +5,7 @@ import {
   handleListSchedules, handleCreateSchedule, handleUpdateSchedule,
   handleDeleteSchedule, handleListRuns, handleTriggerSchedule,
 } from "../src/mcp.ts";
-import { createSchedule } from "../src/queries/schedules.ts";
+import { createSchedule, updateSchedule } from "../src/queries/schedules.ts";
 import { createRun, updateRun } from "../src/queries/runs.ts";
 
 let db: Database;
@@ -110,6 +110,16 @@ describe("trigger_schedule", () => {
     await expect(
       handleTriggerSchedule(db, config, { id: s.id })
     ).rejects.toThrow("Concurrent run limit reached");
+  });
+
+  test("rejects disabled schedule", async () => {
+    const config = createTestConfig();
+    const s = createSchedule(db, { name: "disabled-test", cron: "0 9 * * *", prompt: "go" });
+    updateSchedule(db, s.id, { enabled: 0 });
+
+    await expect(
+      handleTriggerSchedule(db, config, { id: s.id })
+    ).rejects.toThrow("disabled");
   });
 
   test("throws for non-existent schedule", async () => {

@@ -2,6 +2,8 @@ import { Database } from "bun:sqlite";
 import { runMigrations } from "../src/db.ts";
 import type { Config } from "../src/types.ts";
 
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
+
 export function createTestDb(): Database {
   const db = new Database(":memory:");
   db.exec("PRAGMA journal_mode=WAL");
@@ -10,7 +12,7 @@ export function createTestDb(): Database {
   return db;
 }
 
-export function createTestConfig(overrides?: Partial<Config>): Config {
+export function createTestConfig(overrides?: DeepPartial<Config>): Config {
   const defaults: Config = {
     general: {
       statuses: ["todo", "in-progress", "review", "done", "archived"],

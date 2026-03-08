@@ -453,6 +453,10 @@ export async function handleTriggerSchedule(db: Database, config: Config, params
 
   const schedule = sq.getScheduleByPrefix(db, params.id);
 
+  if (!schedule.enabled) {
+    throw new Error(`Schedule "${schedule.name}" is disabled. Enable it first via update_schedule.`);
+  }
+
   // Respect concurrent run limit
   const runningRuns = rq.getRunningRuns(db);
   if (runningRuns.length >= config.daemon.maxConcurrentRuns) {
@@ -464,9 +468,12 @@ export async function handleTriggerSchedule(db: Database, config: Config, params
   const run = rq.createRun(db, {
     schedule_id: schedule.id,
     prompt_used: schedule.prompt,
+    agent: config.daemon.agent,
   });
 
   // Fire-and-forget: start execution asynchronously
+  // Note: ExecutionManager created without tmux/worktree managers — MCP-triggered runs
+  // use direct execution only. Daemon-triggered runs get full tmux/worktree support.
   const { ExecutionManager } = await import("./scheduler.ts");
   const em = new ExecutionManager(db, config);
   em.executeRun(schedule, run).catch(() => {});
