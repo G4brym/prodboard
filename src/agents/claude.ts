@@ -86,13 +86,14 @@ export class ClaudeDriver implements AgentDriver {
         }
       }
       if (event.type === "result") {
-        if (event.result?.tokens_in) tokens_in = event.result.tokens_in;
-        if (event.result?.tokens_out) tokens_out = event.result.tokens_out;
-        if (event.result?.cost_usd) cost_usd = event.result.cost_usd;
+        if (event.usage) {
+          tokens_in = (event.usage.input_tokens ?? 0)
+            + (event.usage.cache_read_input_tokens ?? 0)
+            + (event.usage.cache_creation_input_tokens ?? 0);
+          tokens_out = event.usage.output_tokens ?? 0;
+        }
+        if (event.total_cost_usd) cost_usd = event.total_cost_usd;
       }
-      if (event.tokens_in) tokens_in = event.tokens_in;
-      if (event.tokens_out) tokens_out = event.tokens_out;
-      if (event.cost_usd) cost_usd = event.cost_usd;
     }
 
     return {
