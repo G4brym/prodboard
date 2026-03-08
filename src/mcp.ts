@@ -211,6 +211,17 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "trigger_schedule",
+    description: "Manually trigger a schedule to run immediately. The run is started asynchronously — returns the run ID so you can check status later via list_runs.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string" as const, description: "Schedule ID or unique prefix" },
+      },
+      required: ["id"],
+    },
+  },
 ];
 
 const RESOURCES = [
@@ -434,6 +445,41 @@ export async function handleListRuns(db: Database, params: any) {
   });
 }
 
+export async function handleTriggerSchedule(db: Database, config: Config, params: any) {
+  const sq = await getScheduleQueries();
+  if (!sq) throw new Error("Schedule module not available");
+  const rq = await getRunQueries();
+  if (!rq) throw new Error("Run module not available");
+
+  const schedule = sq.getScheduleByPrefix(db, params.id);
+
+  // Respect concurrent run limit
+  const runningRuns = rq.getRunningRuns(db);
+  if (runningRuns.length >= config.daemon.maxConcurrentRuns) {
+    throw new Error(
+      `Concurrent run limit reached (${runningRuns.length}/${config.daemon.maxConcurrentRuns}). Wait for a running schedule to finish or increase maxConcurrentRuns.`
+    );
+  }
+
+  const run = rq.createRun(db, {
+    schedule_id: schedule.id,
+    prompt_used: schedule.prompt,
+  });
+
+  // Fire-and-forget: start execution asynchronously
+  const { ExecutionManager } = await import("./scheduler.ts");
+  const em = new ExecutionManager(db, config);
+  em.executeRun(schedule, run).catch(() => {});
+
+  return {
+    run_id: run.id,
+    schedule_id: schedule.id,
+    schedule_name: schedule.name,
+    status: "started",
+    message: "Run started asynchronously. Use list_runs to check status.",
+  };
+}
+
 export async function startMcpServer(): Promise<void> {
   if (!existsSync(PRODBOARD_DIR)) {
     const { init } = await import("./commands/init.ts");
@@ -498,6 +544,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case "list_runs":
           result = await handleListRuns(db, params ?? {});
+          break;
+        case "trigger_schedule":
+          result = await handleTriggerSchedule(db, config, params ?? {});
           break;
         default:
           return {
