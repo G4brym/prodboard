@@ -34,7 +34,7 @@ describe("ClaudeDriver parseEvent / extractResult", () => {
   test("extracts session_id from init", () => {
     const events = [
       { type: "init", session_id: "sess-123" },
-      { type: "result", result: { tokens_in: 100, tokens_out: 50, cost_usd: 0.01 } },
+      { type: "result", total_cost_usd: 0.01, usage: { input_tokens: 80, cache_read_input_tokens: 10, cache_creation_input_tokens: 10, output_tokens: 50 } },
     ];
     const data = driver.extractResult(events);
     expect(data.session_id).toBe("sess-123");

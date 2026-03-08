@@ -25,10 +25,12 @@ export interface StreamEvent {
   session_id?: string;
   tool?: string;
   tool_input?: any;
-  result?: {
-    tokens_in?: number;
-    tokens_out?: number;
-    cost_usd?: number;
+  total_cost_usd?: number;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
   };
   [key: string]: any;
 }

@@ -122,12 +122,21 @@ describe("ClaudeDriver", () => {
 
   test("extractResult aggregates tokens from result event", () => {
     const events = [
-      { type: "result", result: { tokens_in: 100, tokens_out: 50, cost_usd: 0.01 } },
+      {
+        type: "result",
+        total_cost_usd: 0.06,
+        usage: {
+          input_tokens: 7,
+          cache_creation_input_tokens: 4889,
+          cache_read_input_tokens: 50179,
+          output_tokens: 210,
+        },
+      },
     ];
     const result = driver.extractResult(events);
-    expect(result.tokens_in).toBe(100);
-    expect(result.tokens_out).toBe(50);
-    expect(result.cost_usd).toBe(0.01);
+    expect(result.tokens_in).toBe(7 + 4889 + 50179);
+    expect(result.tokens_out).toBe(210);
+    expect(result.cost_usd).toBe(0.06);
   });
 
   test("extractResult extracts session_id from init event", () => {
