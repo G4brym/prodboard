@@ -200,13 +200,14 @@ const TOOLS = [
   },
   {
     name: "list_runs",
-    description: "List run history for schedules.",
+    description: "List run history for schedules. By default excludes large fields (stdout_tail, prompt_used) for compact output.",
     inputSchema: {
       type: "object" as const,
       properties: {
         schedule_id: { type: "string" as const, description: "Filter by schedule ID" },
         status: { type: "string" as const, description: "Filter by run status" },
         limit: { type: "number" as const, description: "Max runs to return" },
+        include_output: { type: "boolean" as const, description: "Include stdout_tail and prompt_used fields (default: false)" },
       },
     },
   },
@@ -429,6 +430,7 @@ export async function handleListRuns(db: Database, params: any) {
     schedule_id: params?.schedule_id,
     status: params?.status,
     limit: params?.limit,
+    include_output: params?.include_output,
   });
 }
 
