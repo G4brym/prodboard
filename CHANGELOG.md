@@ -1,5 +1,21 @@
 # prodboard
 
+## 0.3.0
+
+### Minor Changes
+
+- [#17](https://github.com/G4brym/prodboard/pull/17) [`20f3860`](https://github.com/G4brym/prodboard/commit/20f38608b1a5a9d986bcf1d04d4dfb579fa7ec18) Thanks [@G4brym](https://github.com/G4brym)! - Add `trigger_schedule` MCP tool to manually trigger a schedule run
+
+  Adds a new MCP tool that allows agents and users to trigger a schedule to run immediately without waiting for the cron interval. The run is started asynchronously and returns the run ID so callers can check status via `list_runs`. Disabled schedules are rejected, and the concurrent run limit is enforced.
+
+### Patch Changes
+
+- [#20](https://github.com/G4brym/prodboard/pull/20) [`53c5d4d`](https://github.com/G4brym/prodboard/commit/53c5d4d1ee7331e50f4b4cc5fb1aa8e37836967e) Thanks [@G4brym](https://github.com/G4brym)! - Fix schedules with identical cron patterns — all matching schedules now fire
+
+  Snapshot the running-run count once before the tick loop instead of re-querying
+  inside the loop. This prevents a run created for schedule A from counting against
+  schedule B's concurrency check when both share the same cron expression.
+
 ## 0.2.3
 
 ### Patch Changes
