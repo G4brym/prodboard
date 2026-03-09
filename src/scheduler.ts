@@ -282,6 +282,13 @@ export class CronLoop {
 
       const schedules = listSchedules(this.db);
 
+      // Snapshot running count once before creating any new runs this tick.
+      // Without this, createRun() for schedule A inserts a 'running' row that
+      // getRunningRuns() would count when evaluating schedule B, causing
+      // schedules with identical cron patterns to block each other.
+      const runningCount = getRunningRuns(this.db).length;
+      let newRunsThisTick = 0;
+
       for (const schedule of schedules) {
         try {
           if (!shouldFire(schedule.cron, now)) continue;
@@ -289,8 +296,7 @@ export class CronLoop {
           const lastFiredMinute = this.lastFired.get(schedule.id);
           if (lastFiredMinute === minuteTs) continue;
 
-          const runningRuns = getRunningRuns(this.db);
-          if (runningRuns.length >= this.config.daemon.maxConcurrentRuns) continue;
+          if (runningCount + newRunsThisTick >= this.config.daemon.maxConcurrentRuns) break;
 
           const run = createRun(this.db, {
             schedule_id: schedule.id,
@@ -299,6 +305,7 @@ export class CronLoop {
           });
 
           this.lastFired.set(schedule.id, minuteTs);
+          newRunsThisTick++;
 
           this.executionManager.executeRun(schedule, run).catch(() => {});
         } catch (err) {
