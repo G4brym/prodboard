@@ -1,11 +1,11 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
-import { createTestDb } from "./helpers.ts";
+import { createTestDb, createTestConfig } from "./helpers.ts";
 import {
   handleListSchedules, handleCreateSchedule, handleUpdateSchedule,
-  handleDeleteSchedule, handleListRuns,
+  handleDeleteSchedule, handleListRuns, handleTriggerSchedule,
 } from "../src/mcp.ts";
-import { createSchedule } from "../src/queries/schedules.ts";
+import { createSchedule, updateSchedule } from "../src/queries/schedules.ts";
 import { createRun, updateRun } from "../src/queries/runs.ts";
 
 let db: Database;
@@ -71,5 +71,62 @@ describe("MCP Schedule Tools", () => {
 
     const all = await handleListRuns(db, { schedule_id: s.id });
     expect(all.length).toBe(2);
+  });
+});
+
+describe("trigger_schedule", () => {
+  test("creates a run and returns run info", async () => {
+    const config = createTestConfig();
+    const s = createSchedule(db, { name: "trigger-test", cron: "0 9 * * *", prompt: "do work" });
+
+    const result = await handleTriggerSchedule(db, config, { id: s.id });
+
+    expect(result.run_id).toBeTruthy();
+    expect(result.schedule_id).toBe(s.id);
+    expect(result.schedule_name).toBe("trigger-test");
+    expect(result.status).toBe("started");
+
+    // Verify the run was created in the DB
+    const runs = await handleListRuns(db, { schedule_id: s.id });
+    expect(runs.length).toBe(1);
+    expect(runs[0].id).toBe(result.run_id);
+  });
+
+  test("works with schedule ID prefix", async () => {
+    const config = createTestConfig();
+    const s = createSchedule(db, { name: "prefix-test", cron: "0 9 * * *", prompt: "go" });
+
+    const result = await handleTriggerSchedule(db, config, { id: s.id.slice(0, 4) });
+    expect(result.schedule_id).toBe(s.id);
+  });
+
+  test("rejects when concurrent run limit reached", async () => {
+    const config = createTestConfig({ daemon: { maxConcurrentRuns: 1 } });
+    const s = createSchedule(db, { name: "limit-test", cron: "0 9 * * *", prompt: "go" });
+
+    // Create a running run to hit the limit
+    createRun(db, { schedule_id: s.id, prompt_used: "go" });
+
+    await expect(
+      handleTriggerSchedule(db, config, { id: s.id })
+    ).rejects.toThrow("Concurrent run limit reached");
+  });
+
+  test("rejects disabled schedule", async () => {
+    const config = createTestConfig();
+    const s = createSchedule(db, { name: "disabled-test", cron: "0 9 * * *", prompt: "go" });
+    updateSchedule(db, s.id, { enabled: 0 });
+
+    await expect(
+      handleTriggerSchedule(db, config, { id: s.id })
+    ).rejects.toThrow("disabled");
+  });
+
+  test("throws for non-existent schedule", async () => {
+    const config = createTestConfig();
+
+    await expect(
+      handleTriggerSchedule(db, config, { id: "nonexistent" })
+    ).rejects.toThrow();
   });
 });
