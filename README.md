@@ -197,6 +197,7 @@ These are the tools Claude Code sees when connected to the board:
 | `create_schedule` | Set up a new cron job |
 | `update_schedule` | Modify a schedule |
 | `delete_schedule` | Remove a schedule |
+| `trigger_schedule` | Trigger a schedule to run immediately |
 | `list_runs` | Check run history and results |
 
 MCP resources: `prodboard://issues` (board summary) and `prodboard://schedules` (active schedules).
