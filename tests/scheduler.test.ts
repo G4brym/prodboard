@@ -113,4 +113,45 @@ describe("CronLoop", () => {
     const running = getRunningRuns(db);
     expect(running.length).toBe(1);
   });
+
+  test("two schedules with identical cron both fire in same tick", async () => {
+    const config = createTestConfig({ daemon: { ...createTestConfig().daemon, maxConcurrentRuns: 3 } });
+    const em = new ExecutionManager(db, config);
+    const loop = new CronLoop(db, config, em);
+
+    // Create two schedules with the exact same cron pattern
+    createSchedule(db, { name: "House Cleaning", cron: "* * * * *", prompt: "clean" });
+    createSchedule(db, { name: "GitHub Contributor", cron: "* * * * *", prompt: "contribute" });
+
+    await loop.tick();
+
+    const { listRuns } = await import("../src/queries/runs.ts");
+    const runs = listRuns(db, {});
+    // Both schedules should have fired, creating 2 runs
+    expect(runs.length).toBe(2);
+  });
+
+  test("identical cron schedules fire even when one pre-existing run is active", async () => {
+    // maxConcurrentRuns = 3, one pre-existing running run
+    const config = createTestConfig({ daemon: { ...createTestConfig().daemon, maxConcurrentRuns: 3 } });
+    const em = new ExecutionManager(db, config);
+    const loop = new CronLoop(db, config, em);
+
+    const s1 = createSchedule(db, { name: "Existing Task", cron: "* * * * *", prompt: "existing" });
+    // Simulate a run from a previous tick that is still running
+    createRun(db, { schedule_id: s1.id, prompt_used: "still running" });
+
+    createSchedule(db, { name: "House Cleaning", cron: "* * * * *", prompt: "clean" });
+    createSchedule(db, { name: "GitHub Contributor", cron: "* * * * *", prompt: "contribute" });
+
+    await loop.tick();
+
+    // Use listRuns (not getRunningRuns) because the fire-and-forget executeRun
+    // calls may update run status to 'failed' before this assertion runs when
+    // the agent binary is unavailable (e.g. in CI).
+    const { listRuns } = await import("../src/queries/runs.ts");
+    const allRuns = listRuns(db, {});
+    // 1 pre-existing + 2 new = 3 total (at maxConcurrentRuns limit)
+    expect(allRuns.length).toBe(3);
+  });
 });
