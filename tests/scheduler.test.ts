@@ -146,8 +146,12 @@ describe("CronLoop", () => {
 
     await loop.tick();
 
-    const running = getRunningRuns(db);
+    // Use listRuns (not getRunningRuns) because the fire-and-forget executeRun
+    // calls may update run status to 'failed' before this assertion runs when
+    // the agent binary is unavailable (e.g. in CI).
+    const { listRuns } = await import("../src/queries/runs.ts");
+    const allRuns = listRuns(db, {});
     // 1 pre-existing + 2 new = 3 total (at maxConcurrentRuns limit)
-    expect(running.length).toBe(3);
+    expect(allRuns.length).toBe(3);
   });
 });
