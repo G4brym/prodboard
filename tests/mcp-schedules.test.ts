@@ -60,6 +60,19 @@ describe("MCP Schedule Tools", () => {
     expect(runs.length).toBe(0);
   });
 
+  test("create_schedule accepts model", async () => {
+    const result = await handleCreateSchedule(db, {
+      name: "test", cron: "0 9 * * *", prompt: "go", model: "claude-sonnet-4-6",
+    });
+    expect(result.model).toBe("claude-sonnet-4-6");
+  });
+
+  test("update_schedule accepts model", async () => {
+    const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
+    const result = await handleUpdateSchedule(db, { id: s.id, model: "claude-opus-4-6" });
+    expect(result.model).toBe("claude-opus-4-6");
+  });
+
   test("list_runs filters by schedule_id and status", async () => {
     const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
     const r1 = createRun(db, { schedule_id: s.id, prompt_used: "a" });

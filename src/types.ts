@@ -6,6 +6,7 @@ export interface Config {
   };
   daemon: {
     agent: "claude" | "opencode";
+    model: string | null;
     basePath: string | null;
     useTmux: boolean;
     opencode: {
@@ -62,6 +63,7 @@ export interface Schedule {
   use_worktree: number;
   inject_context: number;
   persist_session: number;
+  model: string | null;
   agents_json: string | null;
   source: string;
   created_at: string;

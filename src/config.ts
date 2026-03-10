@@ -73,6 +73,7 @@ export function getDefaults(): Config {
     },
     daemon: {
       agent: "claude",
+      model: null,
       basePath: null,
       useTmux: true,
       opencode: {

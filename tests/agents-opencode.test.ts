@@ -119,6 +119,30 @@ describe("OpenCodeDriver", () => {
     expect(args[idx + 1]).toBe("sess-oc-1");
   });
 
+  test("buildCommand uses schedule.model over config.daemon.opencode.model", () => {
+    const config = createTestConfig({
+      daemon: { agent: "opencode", opencode: { model: "anthropic/claude-sonnet" } },
+    });
+    const s = createSchedule(db, {
+      name: "test", cron: "* * * * *", prompt: "go", model: "anthropic/claude-opus",
+    });
+    const r = createRun(db, { schedule_id: s.id, prompt_used: "go" });
+    const args = driver.buildCommand(makeCtx({ schedule: s, run: r, config }));
+    const idx = args.indexOf("--model");
+    expect(idx).not.toBe(-1);
+    expect(args[idx + 1]).toBe("anthropic/claude-opus");
+  });
+
+  test("buildCommand falls back to config.daemon.model for opencode", () => {
+    const config = createTestConfig({
+      daemon: { agent: "opencode", model: "anthropic/claude-sonnet" },
+    });
+    const args = driver.buildCommand(makeCtx({ config }));
+    const idx = args.indexOf("--model");
+    expect(idx).not.toBe(-1);
+    expect(args[idx + 1]).toBe("anthropic/claude-sonnet");
+  });
+
   test("buildCommand does NOT include Claude-specific flags", () => {
     const args = driver.buildCommand(makeCtx());
     expect(args).not.toContain("--dangerously-skip-permissions");

@@ -98,6 +98,17 @@ describe("Database Module", () => {
     db.close();
   });
 
+  test("migration v3 adds model column to schedules", () => {
+    const db = getDb(":memory:");
+    runMigrations(db);
+
+    const cols = db.query("PRAGMA table_info(schedules)").all() as any[];
+    const modelCol = cols.find((c: any) => c.name === "model");
+    expect(modelCol).toBeTruthy();
+    expect(modelCol.type).toBe("TEXT");
+    db.close();
+  });
+
   test("issues table has correct columns", () => {
     const db = getDb(":memory:");
     runMigrations(db);

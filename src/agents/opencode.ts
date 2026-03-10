@@ -17,8 +17,9 @@ export class OpenCodeDriver implements AgentDriver {
       args.push("--attach", opencode.serverUrl);
     }
 
-    if (opencode.model) {
-      args.push("--model", opencode.model);
+    const model = schedule.model ?? config.daemon.opencode.model ?? config.daemon.model;
+    if (model) {
+      args.push("--model", model);
     }
 
     if (opencode.agent) {

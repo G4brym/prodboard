@@ -108,6 +108,10 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE runs ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude';
     `,
   },
+  {
+    version: 3,
+    sql: `ALTER TABLE schedules ADD COLUMN model TEXT;`,
+  },
 ];
 
 export { MIGRATIONS };

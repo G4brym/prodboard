@@ -16,6 +16,7 @@ export function createSchedule(
     persist_session?: boolean;
     agents_json?: string;
     source?: string;
+    model?: string;
   }
 ): Schedule {
   const id = generateId();
@@ -23,8 +24,8 @@ export function createSchedule(
 
   db.query(`
     INSERT INTO schedules (id, name, cron, prompt, workdir, max_turns, allowed_tools,
-      use_worktree, inject_context, persist_session, agents_json, source, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      use_worktree, inject_context, persist_session, agents_json, source, model, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, opts.name, opts.cron, opts.prompt,
     opts.workdir ?? ".",
@@ -35,6 +36,7 @@ export function createSchedule(
     opts.persist_session ? 1 : 0,
     opts.agents_json ?? null,
     opts.source ?? "cli",
+    opts.model ?? null,
     now, now
   );
 
@@ -83,6 +85,7 @@ export function updateSchedule(
     enabled: "enabled", max_turns: "max_turns", allowed_tools: "allowed_tools",
     use_worktree: "use_worktree", inject_context: "inject_context",
     persist_session: "persist_session", agents_json: "agents_json",
+    model: "model",
   };
 
   let hasRealFields = false;

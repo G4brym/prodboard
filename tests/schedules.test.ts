@@ -62,6 +62,24 @@ describe("Schedule Queries", () => {
     expect(updated.cron).toBe("* * * * *");
   });
 
+  test("create schedule with model", () => {
+    const s = createSchedule(db, {
+      name: "test", cron: "* * * * *", prompt: "go", model: "claude-sonnet-4-6",
+    });
+    expect(s.model).toBe("claude-sonnet-4-6");
+  });
+
+  test("create schedule without model defaults to null", () => {
+    const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
+    expect(s.model).toBeNull();
+  });
+
+  test("update schedule model", () => {
+    const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
+    const updated = updateSchedule(db, s.id, { model: "claude-opus-4-6" });
+    expect(updated.model).toBe("claude-opus-4-6");
+  });
+
   test("delete cascades to runs", () => {
     const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
     // Create a run
