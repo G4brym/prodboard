@@ -62,6 +62,7 @@ export interface Schedule {
   use_worktree: number;
   inject_context: number;
   persist_session: number;
+  model: string | null;
   agents_json: string | null;
   source: string;
   created_at: string;
