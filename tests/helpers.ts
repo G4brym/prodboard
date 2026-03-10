@@ -21,6 +21,7 @@ export function createTestConfig(overrides?: DeepPartial<Config>): Config {
     },
     daemon: {
       agent: "claude",
+      model: null,
       basePath: null,
       useTmux: true,
       opencode: {

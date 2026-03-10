@@ -6,6 +6,7 @@ export interface Config {
   };
   daemon: {
     agent: "claude" | "opencode";
+    model: string | null;
     basePath: string | null;
     useTmux: boolean;
     opencode: {
