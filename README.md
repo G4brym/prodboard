@@ -196,7 +196,8 @@ These are the tools Claude Code sees when connected to the board:
 | `add_comment` | Leave notes on issues (default author: "claude") |
 | `pick_next_issue` | Claim the oldest todo, move to in-progress |
 | `complete_issue` | Mark done with an optional summary comment |
-| `list_schedules` | See scheduled jobs |
+| `list_schedules` | See scheduled jobs (compact, excludes prompt) |
+| `get_schedule` | Read full schedule details including prompt |
 | `create_schedule` | Set up a new cron job |
 | `update_schedule` | Modify a schedule |
 | `delete_schedule` | Remove a schedule |

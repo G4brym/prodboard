@@ -70,7 +70,7 @@ export function listRuns(
   const columns = opts?.include_output
     ? "r.*"
     : `r.id, r.schedule_id, r.status, r.pid, r.started_at, r.finished_at,
-       r.exit_code, r.stderr_tail, r.session_id, r.worktree_path,
+       r.exit_code, r.session_id, r.worktree_path,
        r.tokens_in, r.tokens_out, r.cost_usd, r.tools_used,
        r.issues_touched, r.tmux_session, r.agent`;
 
