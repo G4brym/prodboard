@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.4.0
+
+### Minor Changes
+
+- [#21](https://github.com/G4brym/prodboard/pull/21) [`761e8fc`](https://github.com/G4brym/prodboard/commit/761e8fce4cd370424903753952835f7a399730bb) Thanks [@G4brym](https://github.com/G4brym)! - Add per-schedule and global model selection for Claude and OpenCode agents
+
 ## 0.3.0
 
 ### Minor Changes
