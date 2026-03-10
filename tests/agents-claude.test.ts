@@ -166,4 +166,40 @@ describe("ClaudeDriver", () => {
     expect(result.issues_touched).toContain("abc123");
     expect(result.issues_touched).toContain("def456");
   });
+
+  test("buildCommand passes --model from schedule", () => {
+    const s = createSchedule(db, {
+      name: "test", cron: "* * * * *", prompt: "go", model: "claude-sonnet-4-6",
+    });
+    const r = createRun(db, { schedule_id: s.id, prompt_used: "go" });
+    const args = driver.buildCommand(makeCtx({ schedule: s, run: r }));
+    const idx = args.indexOf("--model");
+    expect(idx).not.toBe(-1);
+    expect(args[idx + 1]).toBe("claude-sonnet-4-6");
+  });
+
+  test("buildCommand passes --model from config when schedule has none", () => {
+    const config = createTestConfig({ daemon: { model: "claude-haiku-4-5-20251001" } });
+    const args = driver.buildCommand(makeCtx({ config }));
+    const idx = args.indexOf("--model");
+    expect(idx).not.toBe(-1);
+    expect(args[idx + 1]).toBe("claude-haiku-4-5-20251001");
+  });
+
+  test("buildCommand schedule model overrides config model", () => {
+    const config = createTestConfig({ daemon: { model: "claude-haiku-4-5-20251001" } });
+    const s = createSchedule(db, {
+      name: "test", cron: "* * * * *", prompt: "go", model: "claude-opus-4-6",
+    });
+    const r = createRun(db, { schedule_id: s.id, prompt_used: "go" });
+    const args = driver.buildCommand(makeCtx({ schedule: s, run: r, config }));
+    const idx = args.indexOf("--model");
+    expect(idx).not.toBe(-1);
+    expect(args[idx + 1]).toBe("claude-opus-4-6");
+  });
+
+  test("buildCommand omits --model when neither schedule nor config sets it", () => {
+    const args = driver.buildCommand(makeCtx());
+    expect(args).not.toContain("--model");
+  });
 });

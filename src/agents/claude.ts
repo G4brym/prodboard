@@ -53,6 +53,11 @@ export class ClaudeDriver implements AgentDriver {
       args.push("--agents", schedule.agents_json);
     }
 
+    const model = schedule.model ?? config.daemon.model;
+    if (model) {
+      args.push("--model", model);
+    }
+
     return args;
   }
 
