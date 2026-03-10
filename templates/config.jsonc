@@ -17,6 +17,12 @@
     // Agent to use: "claude" or "opencode"
     // "agent": "claude",
 
+    // Default model for agent runs (null = agent's default)
+    // For Claude: "claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5-20251001"
+    // For OpenCode: "anthropic/claude-sonnet-4-20250514", etc.
+    // Can be overridden per-schedule with --model
+    // "model": null,
+
     // Base path for worktrees and agent runs (null = use schedule workdir)
     // "basePath": null,
 
