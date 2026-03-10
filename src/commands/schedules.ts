@@ -77,6 +77,7 @@ export async function scheduleAdd(args: string[], dbOverride?: Database): Promis
     use_worktree: !flags["no-worktree"],
     inject_context: !flags["no-context"],
     persist_session: !!flags["persist-session"],
+    model: flags.model as string | undefined,
   });
 
   console.log(`Created schedule ${schedule.id}: ${schedule.name} [${schedule.cron}]`);
@@ -101,16 +102,16 @@ export async function scheduleLs(args: string[], dbOverride?: Database): Promise
   }
 
   const table = renderTable(
-    ["ID", "Name", "Cron", "Enabled", "Next Fire"],
+    ["ID", "Name", "Cron", "Model", "Enabled", "Next Fire"],
     schedules.map((s) => {
       let nextFire = "";
       try {
         const next = getNextFire(s.cron, new Date());
         nextFire = formatDate(next.toISOString());
       } catch {}
-      return [s.id, s.name, s.cron, s.enabled ? "yes" : "no", nextFire];
+      return [s.id, s.name, s.cron, s.model ?? "-", s.enabled ? "yes" : "no", nextFire];
     }),
-    { maxWidths: [10, 30, 20, 8, 18] }
+    { maxWidths: [10, 30, 20, 20, 8, 18] }
   );
   console.log(table);
   console.log(`${schedules.length} schedule${schedules.length === 1 ? "" : "s"}`);
@@ -140,6 +141,7 @@ export async function scheduleEdit(args: string[], dbOverride?: Database): Promi
   }
   if (flags.prompt || flags.p) fields.prompt = flags.prompt ?? flags.p;
   if (flags["max-turns"]) fields.max_turns = parseInt(flags["max-turns"] as string, 10);
+  if (flags.model !== undefined) fields.model = flags.model === "" ? null : flags.model;
 
   const updated = updateSchedule(db, schedule.id, fields);
   console.log(`Updated schedule ${updated.id}: ${updated.name}`);

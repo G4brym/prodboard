@@ -102,4 +102,33 @@ describe("CLI Schedule Commands", () => {
     expect(stdout).toContain("Total runs: 1");
     expect(stdout).toContain("Success: 1");
   });
+
+  test("schedule add accepts --model", async () => {
+    const { stdout } = await captureOutput(async () => {
+      await scheduleAdd(["--name", "test", "--cron", "* * * * *", "--prompt", "go", "--model", "claude-sonnet-4-6"], db);
+    });
+    expect(stdout).toContain("Created schedule");
+
+    // Verify model was stored
+    const schedules = db.query("SELECT * FROM schedules").all() as any[];
+    expect(schedules[0].model).toBe("claude-sonnet-4-6");
+  });
+
+  test("schedule edit accepts --model", async () => {
+    const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go" });
+    await captureOutput(async () => {
+      await scheduleEdit([s.id, "--model", "claude-opus-4-6"], db);
+    });
+    const updated = db.query("SELECT * FROM schedules WHERE id = ?").get(s.id) as any;
+    expect(updated.model).toBe("claude-opus-4-6");
+  });
+
+  test("schedule edit --model empty string clears model", async () => {
+    const s = createSchedule(db, { name: "test", cron: "* * * * *", prompt: "go", model: "claude-opus-4-6" });
+    await captureOutput(async () => {
+      await scheduleEdit([s.id, "--model", ""], db);
+    });
+    const updated = db.query("SELECT * FROM schedules WHERE id = ?").get(s.id) as any;
+    expect(updated.model).toBeNull();
+  });
 });
