@@ -168,6 +168,7 @@ const TOOLS = [
         prompt: { type: "string" as const, description: "Prompt to send to Claude" },
         workdir: { type: "string" as const, description: "Working directory" },
         max_turns: { type: "number" as const, description: "Max turns per run" },
+        model: { type: "string" as const, description: "Model to use for this schedule (e.g. claude-sonnet-4-6)" },
       },
       required: ["name", "cron", "prompt"],
     },
@@ -183,6 +184,7 @@ const TOOLS = [
         cron: { type: "string" as const },
         prompt: { type: "string" as const },
         enabled: { type: "boolean" as const },
+        model: { type: "string" as const, description: "Model override (empty string to clear)" },
       },
       required: ["id"],
     },
@@ -401,6 +403,7 @@ export async function handleCreateSchedule(db: Database, params: any) {
     prompt: params.prompt,
     workdir: params.workdir,
     max_turns: params.max_turns,
+    model: params.model,
     source: "mcp",
   });
 }
@@ -420,6 +423,7 @@ export async function handleUpdateSchedule(db: Database, params: any) {
   }
   if (params.prompt !== undefined) fields.prompt = params.prompt;
   if (params.enabled !== undefined) fields.enabled = params.enabled ? 1 : 0;
+  if (params.model !== undefined) fields.model = params.model === "" ? null : params.model;
 
   return sq.updateSchedule(db, schedule.id, fields);
 }
