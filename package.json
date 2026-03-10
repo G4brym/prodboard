@@ -1,6 +1,6 @@
 {
   "name": "prodboard",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Self-hosted, CLI-first issue tracker and cron scheduler for AI coding agents",
   "type": "module",
   "license": "MIT",
