@@ -150,8 +150,11 @@ prodboard comments <id>                              # List comments
 
 ```bash
 prodboard schedule add --name "job" --cron "0 9 * * *" --prompt "Do X"
+prodboard schedule add --name "fast" --cron "*/30 * * * *" --prompt "Do Y" --model claude-sonnet-4-6
 prodboard schedule ls                                # List schedules
 prodboard schedule edit <id> --cron "0 10 * * *"     # Edit
+prodboard schedule edit <id> --model claude-opus-4-6 # Set model
+prodboard schedule edit <id> --model ""              # Clear model override
 prodboard schedule enable <id>                       # Enable
 prodboard schedule disable <id>                      # Disable
 prodboard schedule rm <id> --force                   # Delete
@@ -226,6 +229,34 @@ OpenCode-specific settings:
 }
 ```
 
+## Model Selection
+
+You can control which model is used for scheduled runs at two levels:
+
+**Global default** — Set `daemon.model` in your config to apply to all schedules:
+
+```jsonc
+{
+  "daemon": {
+    "model": "claude-sonnet-4-6"
+  }
+}
+```
+
+**Per-schedule override** — Set `--model` when creating or editing a schedule:
+
+```bash
+prodboard schedule add --name "triage" --cron "0 9 * * *" --prompt "Triage the board" --model claude-opus-4-6
+prodboard schedule edit <id> --model claude-haiku-4-5-20251001
+prodboard schedule edit <id> --model ""   # clear override, fall back to global
+```
+
+**Resolution order:** schedule `--model` > `daemon.model` > agent's built-in default. For OpenCode, `daemon.opencode.model` sits between the global `daemon.model` and the agent default.
+
+Example model IDs:
+- Claude Code: `claude-sonnet-4-6`, `claude-opus-4-6`, `claude-haiku-4-5-20251001`
+- OpenCode: `anthropic/claude-sonnet-4-20250514`, etc.
+
 ## Configuration
 
 Config file: `~/.prodboard/config.jsonc`
@@ -239,6 +270,7 @@ Config file: `~/.prodboard/config.jsonc`
   },
   "daemon": {
     "agent": "claude",            // "claude" or "opencode"
+    "model": null,                // default model for runs (null = agent's default)
     "basePath": null,             // base path for worktrees and runs (null = use schedule workdir)
     "useTmux": true,              // wrap agent runs in tmux sessions
     "maxConcurrentRuns": 2,
