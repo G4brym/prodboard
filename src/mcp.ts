@@ -149,12 +149,23 @@ const TOOLS = [
   },
   {
     name: "list_schedules",
-    description: "List scheduled tasks with their status and last run info.",
+    description: "List scheduled tasks (compact: excludes prompt, agents_json, allowed_tools). Use get_schedule for full details.",
     inputSchema: {
       type: "object" as const,
       properties: {
         include_disabled: { type: "boolean" as const, description: "Include disabled schedules" },
       },
+    },
+  },
+  {
+    name: "get_schedule",
+    description: "Get full details of a scheduled task, including prompt text.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: { type: "string" as const, description: "Schedule ID or prefix" },
+      },
+      required: ["id"],
     },
   },
   {
@@ -380,11 +391,27 @@ export async function handleListSchedules(db: Database, params: any) {
       lastRun = rq.getLastRun(db, s.id);
     }
     result.push({
-      ...s,
+      id: s.id,
+      name: s.name,
+      cron: s.cron,
+      workdir: s.workdir,
+      enabled: s.enabled,
+      model: s.model,
+      max_turns: s.max_turns,
+      use_worktree: s.use_worktree,
+      source: s.source,
+      created_at: s.created_at,
+      updated_at: s.updated_at,
       last_run: lastRun ? { status: lastRun.status, finished_at: lastRun.finished_at } : null,
     });
   }
   return result;
+}
+
+export async function handleGetSchedule(db: Database, params: any) {
+  const sq = await getScheduleQueries();
+  if (!sq) throw new Error("Schedule module not available");
+  return sq.getScheduleByPrefix(db, params.id);
 }
 
 export async function handleCreateSchedule(db: Database, params: any) {
@@ -543,6 +570,9 @@ export async function startMcpServer(): Promise<void> {
           break;
         case "list_schedules":
           result = await handleListSchedules(db, params ?? {});
+          break;
+        case "get_schedule":
+          result = await handleGetSchedule(db, params ?? {});
           break;
         case "create_schedule":
           result = await handleCreateSchedule(db, params ?? {});

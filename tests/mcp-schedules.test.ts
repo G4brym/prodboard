@@ -2,8 +2,9 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createTestDb, createTestConfig } from "./helpers.ts";
 import {
-  handleListSchedules, handleCreateSchedule, handleUpdateSchedule,
-  handleDeleteSchedule, handleListRuns, handleTriggerSchedule,
+  handleListSchedules, handleGetSchedule, handleCreateSchedule,
+  handleUpdateSchedule, handleDeleteSchedule, handleListRuns,
+  handleTriggerSchedule,
 } from "../src/mcp.ts";
 import { createSchedule, updateSchedule } from "../src/queries/schedules.ts";
 import { createRun, updateRun } from "../src/queries/runs.ts";
@@ -40,6 +41,34 @@ describe("MCP Schedule Tools", () => {
     expect(result.length).toBe(1);
     expect(result[0].last_run).toBeTruthy();
     expect(result[0].last_run.status).toBe("success");
+  });
+
+  test("list_schedules excludes prompt, agents_json, allowed_tools", async () => {
+    createSchedule(db, { name: "test", cron: "* * * * *", prompt: "a long prompt", agents_json: '{"a":1}', allowed_tools: "Bash,Read" });
+
+    const result = await handleListSchedules(db, {}) as any[];
+    expect(result.length).toBe(1);
+    expect(result[0].name).toBe("test");
+    expect(result[0]).not.toHaveProperty("prompt");
+    expect(result[0]).not.toHaveProperty("agents_json");
+    expect(result[0]).not.toHaveProperty("allowed_tools");
+  });
+
+  test("get_schedule returns full schedule with prompt", async () => {
+    const s = createSchedule(db, { name: "detail", cron: "0 9 * * *", prompt: "full prompt text" });
+    const result = await handleGetSchedule(db, { id: s.id });
+    expect(result.id).toBe(s.id);
+    expect(result.prompt).toBe("full prompt text");
+  });
+
+  test("get_schedule works with prefix", async () => {
+    const s = createSchedule(db, { name: "prefix", cron: "0 9 * * *", prompt: "go" });
+    const result = await handleGetSchedule(db, { id: s.id.slice(0, 4) });
+    expect(result.id).toBe(s.id);
+  });
+
+  test("get_schedule throws for non-existent schedule", async () => {
+    await expect(handleGetSchedule(db, { id: "nonexistent" })).rejects.toThrow();
   });
 
   test("update_schedule partial updates work", async () => {
