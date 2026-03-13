@@ -1,5 +1,11 @@
 # prodboard
 
+## 0.5.0
+
+### Minor Changes
+
+- [#23](https://github.com/G4brym/prodboard/pull/23) [`146b3b5`](https://github.com/G4brym/prodboard/commit/146b3b5105ad127c3eb31f4e8c6ea19918329380) Thanks [@G4brym](https://github.com/G4brym)! - Optimize MCP list handlers: trim prompt from list_schedules, add get_schedule tool, exclude stderr_tail from list_runs defaults
+
 ## 0.4.0
 
 ### Minor Changes
