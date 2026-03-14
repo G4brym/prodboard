@@ -89,7 +89,7 @@ export async function scheduleLs(args: string[], dbOverride?: Database): Promise
   const isJson = !!flags.json;
   const all = !!(flags.all || flags.a);
 
-  const schedules = listSchedules(db, { includeDisabled: all });
+  const schedules = listSchedules(db, { includeDisabled: true });
 
   if (isJson) {
     console.log(jsonOutput(schedules));
