@@ -48,6 +48,16 @@ describe("CLI Schedule Commands", () => {
     expect(parsed.length).toBe(1);
   });
 
+  test("schedule ls shows disabled schedules by default", async () => {
+    const s = createSchedule(db, { name: "mytest", cron: "* * * * *", prompt: "go" });
+    disableSchedule(db, s.id);
+    const { stdout } = await captureOutput(async () => {
+      await scheduleLs([], db);
+    });
+    expect(stdout).toContain("mytest");
+    expect(stdout).toContain("no"); // Enabled column shows "no"
+  });
+
   test("schedule edit updates fields", async () => {
     const s = createSchedule(db, { name: "old", cron: "* * * * *", prompt: "go" });
     const { stdout } = await captureOutput(async () => {
