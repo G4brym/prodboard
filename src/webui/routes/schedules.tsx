@@ -9,7 +9,9 @@ import {
   updateSchedule, deleteSchedule, enableSchedule, disableSchedule,
 } from "../../queries/schedules.ts";
 import { validateCron } from "../../cron.ts";
-import { getLastRun } from "../../queries/runs.ts";
+import { getLastRun, createRun } from "../../queries/runs.ts";
+import { loadConfig } from "../../config.ts";
+import { ExecutionManager } from "../../scheduler.ts";
 
 export function scheduleRoutes(db: Database, _config: Config) {
   const app = new Hono();
@@ -95,7 +97,10 @@ export function scheduleRoutes(db: Database, _config: Config) {
                 const lastRun = getLastRun(db, s.id);
                 return (
                   <tr class="hover:bg-muted/30 transition-colors" key={s.id}>
-                    <td class="px-4 py-3 text-sm font-medium text-foreground">{s.name}</td>
+                    <td class="px-4 py-3">
+                      <div class="text-sm font-medium text-foreground">{s.name}</div>
+                      <div class="text-xs text-muted-foreground font-mono mt-0.5">{s.id.slice(0, 8)}</div>
+                    </td>
                     <td class="px-4 py-3 text-sm text-muted-foreground font-mono">{s.cron}</td>
                     <td class="px-4 py-3">
                       {s.enabled
@@ -108,6 +113,11 @@ export function scheduleRoutes(db: Database, _config: Config) {
                     </td>
                     <td class="px-4 py-3 text-right">
                       <div class="flex items-center justify-end gap-1.5">
+                        <form method="post" action={`/schedules/${s.id}/run`}>
+                          <button type="submit"
+                            class="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                          >Run once</button>
+                        </form>
                         <form method="post" action={`/schedules/${s.id}/toggle`}>
                           <button type="submit"
                             class="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent transition-colors"
@@ -181,6 +191,20 @@ export function scheduleRoutes(db: Database, _config: Config) {
     } else {
       enableSchedule(db, schedule.id);
     }
+    return c.redirect("/schedules");
+  });
+
+  app.post("/:id/run", async (c) => {
+    const id = c.req.param("id");
+    const schedule = getScheduleByPrefix(db, id);
+    const config = loadConfig();
+    const run = createRun(db, {
+      schedule_id: schedule.id,
+      prompt_used: schedule.prompt,
+      agent: config.daemon.agent,
+    });
+    const em = new ExecutionManager(db, config);
+    em.executeRun(schedule, run).catch(() => {});
     return c.redirect("/schedules");
   });
 
