@@ -84,6 +84,18 @@ export function listRuns(
   `).all(...params, limit) as Run[];
 }
 
+export function getRun(db: Database, id: string): Run | null {
+  // Support prefix matching
+  if (id.length < 36) {
+    return db.query(
+      "SELECT r.*, s.name as schedule_name FROM runs r LEFT JOIN schedules s ON r.schedule_id = s.id WHERE r.id LIKE ? LIMIT 1"
+    ).get(id + "%") as Run | null;
+  }
+  return db.query(
+    "SELECT r.*, s.name as schedule_name FROM runs r LEFT JOIN schedules s ON r.schedule_id = s.id WHERE r.id = ?"
+  ).get(id) as Run | null;
+}
+
 export function getRunningRuns(db: Database): Run[] {
   return db.query("SELECT * FROM runs WHERE status = 'running'").all() as Run[];
 }

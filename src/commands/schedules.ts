@@ -140,8 +140,12 @@ export async function scheduleEdit(args: string[], dbOverride?: Database): Promi
     fields.cron = newCron;
   }
   if (flags.prompt || flags.p) fields.prompt = flags.prompt ?? flags.p;
+  if (flags.workdir || flags.w) fields.workdir = flags.workdir ?? flags.w;
   if (flags["max-turns"]) fields.max_turns = parseInt(flags["max-turns"] as string, 10);
   if (flags.model !== undefined) fields.model = flags.model === "" ? null : flags.model;
+  if (flags["no-worktree"]) fields.use_worktree = 0;
+  if (flags["no-context"]) fields.inject_context = 0;
+  if (flags["persist-session"]) fields.persist_session = 1;
 
   const updated = updateSchedule(db, schedule.id, fields);
   console.log(`Updated schedule ${updated.id}: ${updated.name}`);

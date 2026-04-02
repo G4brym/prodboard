@@ -98,8 +98,9 @@ describe("MCP Integration", () => {
         arguments: {},
       }, 4);
       const listed = JSON.parse(listResponse.result.content[0].text);
-      expect(listed.length).toBe(1);
-      expect(listed[0].title).toBe("Integration test issue");
+      expect(listed.issues.length).toBe(1);
+      expect(listed.total).toBe(1);
+      expect(listed.issues[0].title).toBe("Integration test issue");
 
       // Invalid tool name
       const invalidResponse = await sendJsonRpc(proc, "tools/call", {

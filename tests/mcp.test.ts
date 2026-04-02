@@ -18,17 +18,42 @@ beforeEach(() => {
 
 describe("MCP Tool Handlers", () => {
   describe("list_issues", () => {
-    test("returns correct shape", () => {
+    test("returns correct shape with total", () => {
       createIssue(db, { title: "Test" });
       const result = handleListIssues(db, {});
-      expect(result.length).toBe(1);
-      expect(result[0].id).toBeTruthy();
-      expect(result[0].title).toBe("Test");
-      expect(result[0].status).toBe("todo");
-      expect(result[0].comment_count).toBe(0);
-      expect(result[0].updated_at).toBeTruthy();
+      expect(result.total).toBe(1);
+      expect(result.issues.length).toBe(1);
+      expect(result.issues[0].id).toBeTruthy();
+      expect(result.issues[0].title).toBe("Test");
+      expect(result.issues[0].status).toBe("todo");
+      expect(result.issues[0].comment_count).toBe(0);
+      expect(result.issues[0].updated_at).toBeTruthy();
       // Should NOT have description
-      expect((result[0] as any).description).toBeUndefined();
+      expect((result.issues[0] as any).description).toBeUndefined();
+    });
+
+    test("total reflects full count when limit applies", () => {
+      for (let i = 0; i < 5; i++) createIssue(db, { title: `Issue ${i}` });
+      const result = handleListIssues(db, { limit: 2 });
+      expect(result.issues.length).toBe(2);
+      expect(result.total).toBe(5);
+    });
+
+    test("sort and order params are respected", () => {
+      createIssue(db, { title: "Alpha" });
+      createIssue(db, { title: "Beta" });
+      const asc = handleListIssues(db, { sort: "title", order: "ASC" });
+      expect(asc.issues[0].title).toBe("Alpha");
+      const desc = handleListIssues(db, { sort: "title", order: "DESC" });
+      expect(desc.issues[0].title).toBe("Beta");
+    });
+
+    test("filters by status", () => {
+      createIssue(db, { title: "Todo issue", status: "todo" });
+      createIssue(db, { title: "Done issue", status: "done" });
+      const result = handleListIssues(db, { status: ["todo"] });
+      expect(result.total).toBe(1);
+      expect(result.issues[0].title).toBe("Todo issue");
     });
   });
 

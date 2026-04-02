@@ -13,6 +13,8 @@ import type { AgentDriver, StreamEvent } from "./agents/types.ts";
 import { TmuxManager } from "./tmux.ts";
 import { WorktreeManager } from "./worktree.ts";
 import { OpenCodeServerManager } from "./opencode-server.ts";
+import { Logger } from "./logger.ts";
+import type { LogLevel } from "./logger.ts";
 
 // Re-export for backward compatibility
 export type { StreamEvent };
@@ -44,6 +46,7 @@ export class ExecutionManager {
     private driver: AgentDriver = createAgentDriver(config),
     private tmuxManager?: TmuxManager,
     private worktreeManager?: WorktreeManager,
+    private logger?: Logger,
   ) {}
 
   async executeRun(schedule: Schedule, run: Run): Promise<void> {
@@ -76,9 +79,11 @@ export class ExecutionManager {
         effectiveWorkdir = worktreePath;
         updateRun(this.db, run.id, { worktree_path: worktreePath });
       } catch (err: any) {
-        console.error(`[prodboard] Warning: Failed to create worktree: ${err.message}`);
+        this.logger?.warn("Failed to create worktree", { runId: run.id, error: err.message });
       }
     }
+
+    this.logger?.info("Run started", { runId: run.id, scheduleId: schedule.id, scheduleName: schedule.name });
 
     const args = this.driver.buildCommand({
       schedule,
@@ -136,8 +141,9 @@ export class ExecutionManager {
         const result = this.driver.extractResult(events);
         const now = new Date().toISOString().replace("T", " ").slice(0, 19);
 
+        const finalStatus = timedOut ? "timeout" : exitCode === 0 ? "success" : "failed";
         updateRun(this.db, run.id, {
-          status: timedOut ? "timeout" : exitCode === 0 ? "success" : "failed",
+          status: finalStatus,
           finished_at: now,
           exit_code: exitCode,
           stdout_tail: stdoutBuffer.toString(),
@@ -148,6 +154,7 @@ export class ExecutionManager {
           tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
           issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
         });
+        this.logger?.info("Run finished", { runId: run.id, status: finalStatus, exitCode });
       } else {
         // Direct spawn path (no tmux)
         const proc = Bun.spawn(args, {
@@ -225,6 +232,7 @@ export class ExecutionManager {
           tools_used: result.tools_used.length > 0 ? JSON.stringify(result.tools_used) : null,
           issues_touched: result.issues_touched.length > 0 ? JSON.stringify(result.issues_touched) : null,
         });
+        this.logger?.info("Run finished", { runId: run.id, status, exitCode });
       }
     } catch (err: any) {
       const now = new Date().toISOString().replace("T", " ").slice(0, 19);
@@ -233,6 +241,7 @@ export class ExecutionManager {
         finished_at: now,
         stderr_tail: err instanceof Error ? err.message : String(err),
       });
+      this.logger?.error("Run failed with exception", { runId: run.id, error: err instanceof Error ? err.message : String(err) });
     } finally {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
 
@@ -258,7 +267,8 @@ export class CronLoop {
   constructor(
     private db: Database,
     private config: Config,
-    private executionManager: ExecutionManager
+    private executionManager: ExecutionManager,
+    private logger?: Logger,
   ) {}
 
   start(): void {
